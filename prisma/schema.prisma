@@ -1,0 +1,72 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+model User {
+  user_id    Int           @id @default(autoincrement())
+  username   String        @unique
+  role       String
+  created_at DateTime      @default(now())
+  sessions   ChatSession[]
+}
+
+model ChatSession {
+  session_id     Int       @id @default(autoincrement())
+  user_id        Int
+  session_status String
+  start_time     DateTime  @default(now())
+  user           User      @relation(fields: [user_id], references: [user_id])
+  messages       Message[]
+}
+
+model Message {
+  message_id    Int               @id @default(autoincrement())
+  session_id    Int
+  sender_type   String            // "user" veya "bot"
+  content       String
+  timestamp     DateTime          @default(now())
+  session       ChatSession       @relation(fields: [session_id], references: [session_id])
+  analysis      AnalysisResult?
+  ticket        Feedback_Tickets?
+}
+
+model AnalysisResult {
+  analysis_id      Int      @id @default(autoincrement())
+  message_id       Int      @unique
+  sentiment_label  String   // Örn: "Negative", "Positive"
+  confidence_score Float
+  nlp_category     String   // Örn: "Lojistik", "Ödeme"
+  message          Message  @relation(fields: [message_id], references: [message_id])
+}
+
+model Feedback_Tickets {
+  ticket_id      Int       @id @default(autoincrement())
+  message_id     Int       @unique
+  priority_level String
+  ticket_status  String    @default("Açık")
+  resolved_at    DateTime?
+  message        Message   @relation(fields: [message_id], references: [message_id])
+}
+
+model Admin {
+  admin_id      Int              @id @default(autoincrement())
+  username      String           @unique
+  password_hash String
+  last_login    DateTime?
+  stats         Dashboard_Stats?
+}
+
+model Dashboard_Stats {
+  stat_id         Int      @id @default(autoincrement())
+  admin_id        Int      @unique
+  total_feedbacks Int      @default(0)
+  negative_ratio  Float    @default(0.0)
+  nlp_accuracy    Float    @default(0.0)
+  last_updated    DateTime @default(now())
+  admin           Admin    @relation(fields: [admin_id], references: [admin_id])
+}
