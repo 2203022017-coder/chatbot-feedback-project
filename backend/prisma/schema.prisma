@@ -1,0 +1,98 @@
+// Prisma schema — backend'e özel.
+// SQLite kullanıyoruz: zero-config, dosya tabanlı (backend/prisma/dev.db).
+// Mevcut tüm modeller (User, ChatSession, Message, vb.) raporda yer aldığı için korundu.
+// /api/feedback/analyze ve admin paneli için pratik olan basit "Feedback" modeli eklendi.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ====================================================================
+// YENİ: Pratik Feedback modeli — admin panel ve analyze endpoint'i için.
+// Mevcut in-memory feedbacksDB dizisinin DB karşılığı.
+// ====================================================================
+model Feedback {
+  id         Int      @id @default(autoincrement())
+  text       String
+  sentiment  String   // Negative, Neutral, Positive
+  category   String   // Lojistik, Teknik, Ödeme, İletişim, Ürün, İşlem
+  score      Float    // 0.0 - 1.0
+  created_at DateTime @default(now())
+
+  @@index([created_at])
+  @@index([sentiment])
+}
+
+// ====================================================================
+// Aşağıdaki modeller raporda yer aldığı için schema'da KORUNDU.
+// Future use için duruyorlar — şu an sadece Feedback modeli aktif kullanılıyor.
+// ====================================================================
+
+model User {
+  user_id    Int           @id @default(autoincrement())
+  username   String        @unique
+  role       String
+  created_at DateTime      @default(now())
+  sessions   ChatSession[]
+}
+
+model ChatSession {
+  session_id     Int       @id @default(autoincrement())
+  user_id        Int
+  session_status String
+  start_time     DateTime  @default(now())
+  user           User      @relation(fields: [user_id], references: [user_id])
+  messages       Message[]
+}
+
+model Message {
+  message_id    Int               @id @default(autoincrement())
+  session_id    Int
+  sender_type   String            // "user" veya "bot"
+  content       String
+  timestamp     DateTime          @default(now())
+  session       ChatSession       @relation(fields: [session_id], references: [session_id])
+  analysis      AnalysisResult?
+  ticket        Feedback_Tickets?
+}
+
+model AnalysisResult {
+  analysis_id      Int     @id @default(autoincrement())
+  message_id       Int     @unique
+  sentiment_label  String
+  confidence_score Float
+  nlp_category     String
+  message          Message @relation(fields: [message_id], references: [message_id])
+}
+
+model Feedback_Tickets {
+  ticket_id      Int       @id @default(autoincrement())
+  message_id     Int       @unique
+  priority_level String
+  ticket_status  String    @default("Açık")
+  resolved_at    DateTime?
+  message        Message   @relation(fields: [message_id], references: [message_id])
+}
+
+model Admin {
+  admin_id      Int              @id @default(autoincrement())
+  username      String           @unique
+  password_hash String
+  last_login    DateTime?
+  stats         Dashboard_Stats?
+}
+
+model Dashboard_Stats {
+  stat_id         Int      @id @default(autoincrement())
+  admin_id        Int      @unique
+  total_feedbacks Int      @default(0)
+  negative_ratio  Float    @default(0.0)
+  nlp_accuracy    Float    @default(0.0)
+  last_updated    DateTime @default(now())
+  admin           Admin    @relation(fields: [admin_id], references: [admin_id])
+}

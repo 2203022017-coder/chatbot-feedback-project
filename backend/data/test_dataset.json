@@ -1,0 +1,41 @@
+{
+  "info": {
+    "description": "AI Feedback Hub doğruluk ölçümü için etiketli test veri seti. EK-6'daki şikayet kategorileri temel alınarak hazırlanmıştır.",
+    "categories": ["Lojistik", "Teknik", "Ödeme", "İletişim", "Ürün", "İşlem"],
+    "sentiments": ["Negative", "Neutral", "Positive"],
+    "total_samples": 24,
+    "version": "1.0"
+  },
+  "samples": [
+    { "id": 1,  "text": "Kargom 4 gündür gelmedi, takip numarası da güncellenmiyor.", "expected_category": "Lojistik", "expected_sentiment": "Negative" },
+    { "id": 2,  "text": "Yanlış adrese teslim edildi, müşteri hizmetleri konuyu çözmedi.", "expected_category": "Lojistik", "expected_sentiment": "Negative" },
+    { "id": 3,  "text": "Kurye benimle hiç iletişim kurmadan paketi geri götürdü.", "expected_category": "Lojistik", "expected_sentiment": "Negative" },
+    { "id": 4,  "text": "Hasarlı bir koliyle teslimat yapıldı, içindeki ürün kırılmış.", "expected_category": "Lojistik", "expected_sentiment": "Negative" },
+
+    { "id": 5,  "text": "Mobil uygulamanız ödeme adımında sürekli çöküyor.", "expected_category": "Teknik", "expected_sentiment": "Negative" },
+    { "id": 6,  "text": "Şifre sıfırlama maili 2 saattir gelmedi, hesabıma giremiyorum.", "expected_category": "Teknik", "expected_sentiment": "Negative" },
+    { "id": 7,  "text": "Sepete ekleme butonu çalışmıyor, sayfa yenilenmiyor.", "expected_category": "Teknik", "expected_sentiment": "Negative" },
+    { "id": 8,  "text": "Sitenin ödeme sayfası çok yavaş yükleniyor.", "expected_category": "Teknik", "expected_sentiment": "Negative" },
+
+    { "id": 9,  "text": "Hesabımdan iki kez tahsilat yapılmış, iadenizi bekliyorum.", "expected_category": "Ödeme", "expected_sentiment": "Negative" },
+    { "id": 10, "text": "İade ettiğim ürünün parası 10 gündür hesabıma yatmadı.", "expected_category": "Ödeme", "expected_sentiment": "Negative" },
+    { "id": 11, "text": "Kurumsal fatura talep ettim ama hâlâ kesilmedi.", "expected_category": "Ödeme", "expected_sentiment": "Negative" },
+    { "id": 12, "text": "Taksit seçeneği ödeme ekranında görünmüyor.", "expected_category": "Ödeme", "expected_sentiment": "Negative" },
+
+    { "id": 13, "text": "Müşteri temsilcisi çok kaba davrandı, telefonu yüzüme kapattı.", "expected_category": "İletişim", "expected_sentiment": "Negative" },
+    { "id": 14, "text": "Destek talebime 3 gündür hiç dönüş yapılmadı.", "expected_category": "İletişim", "expected_sentiment": "Negative" },
+    { "id": 15, "text": "Canlı destek asistanınız sorumu anlamadı, yetersiz kaldı.", "expected_category": "İletişim", "expected_sentiment": "Negative" },
+
+    { "id": 16, "text": "Ürün kutudan kırık çıktı, paketleme çok özensizdi.", "expected_category": "Ürün", "expected_sentiment": "Negative" },
+    { "id": 17, "text": "Görseldekinden tamamen farklı bir ürün geldi, çok hayal kırıklığı.", "expected_category": "Ürün", "expected_sentiment": "Negative" },
+    { "id": 18, "text": "Kutudan eksik parçalar çıktı, bir an önce gönderin lütfen.", "expected_category": "Ürün", "expected_sentiment": "Negative" },
+
+    { "id": 19, "text": "Aboneliğimi iptal etmek istiyorum ama buton tepki vermiyor.", "expected_category": "İşlem", "expected_sentiment": "Negative" },
+    { "id": 20, "text": "Kampanya kodum sepette geçersiz görünüyor, neden anlamadım.", "expected_category": "İşlem", "expected_sentiment": "Negative" },
+    { "id": 21, "text": "Hesap silme işlemi başarısız oldu, ne yapmam gerekiyor?", "expected_category": "İşlem", "expected_sentiment": "Negative" },
+
+    { "id": 22, "text": "Çok hızlı teslimat oldu, gerçekten teşekkür ederim!", "expected_category": "Lojistik", "expected_sentiment": "Positive" },
+    { "id": 23, "text": "Müşteri temsilciniz çok yardımsever ve nazikti, memnun kaldım.", "expected_category": "İletişim", "expected_sentiment": "Positive" },
+    { "id": 24, "text": "Ürün kalitesi açıklamadakiyle birebir aynı, bayıldım.", "expected_category": "Ürün", "expected_sentiment": "Positive" }
+  ]
+}

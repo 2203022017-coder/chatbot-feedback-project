@@ -1,55 +1,94 @@
+import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
 import { Groq } from 'groq-sdk';
+import { readFileSync, existsSync } from 'fs';
+import { join } from 'path';
+import { ANALYZE_SYSTEM_PROMPT, ANALYZE_MODEL } from './prompts/analyzePrompt';
+import prisma from './lib/prisma';
 console.log("DİKKAT: YENİ KOD ÇALIŞIYOR!");
 const app = express();
 app.use(cors());
 
 app.use(express.json());
 
-// API Şifren
-const groq = new Groq({ apiKey: "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" });
+// API anahtarı sadece ortam değişkeninden okunur — kodda gömülü tutmak güvenlik açığıdır.
+// Lokalde:   backend/.env  içinde  GROQ_API_KEY=...
+// Render'da: Dashboard -> Environment -> GROQ_API_KEY ekle.
+const GROQ_API_KEY = process.env.GROQ_API_KEY;
+if (!GROQ_API_KEY) {
+  throw new Error(
+    "❌ GROQ_API_KEY tanımlı değil. backend/.env dosyasına ekleyin (lokalde) veya Render dashboard'dan environment variable olarak girin."
+  );
+}
+const groq = new Groq({ apiKey: GROQ_API_KEY });
 
-// GEÇİCİ VERİTABANI (Sayıları ve Tabloyu Tutar)
+// GEÇİCİ VERİTABANI — fallback olarak duruyor.
+// Prisma + SQLite kurulu ve çalışıyorsa kayıtlar DB'ye gider; aşağıdaki dizi sadece
+// "kemer + askılı" güvenlik için (DB yokken sistem yine ayakta kalsın diye).
 let feedbacksDB: any[] = [];
+
+/** Saat:dakika formatında zaman damgası (frontend tablosunda gösterim için). */
+const fmtTime = (d: Date) =>
+  d.toLocaleTimeString("tr-TR", { hour: '2-digit', minute: '2-digit' });
 
 app.post('/api/feedback/analyze', async (req, res) => {
   try {
     const { text } = req.body;
-    
+
     const chatCompletion = await groq.chat.completions.create({
       messages: [
         {
           role: "system",
-          content: "Sen bir müşteri şikayeti analiz asistanısın. Gelen metni analiz et ve JSON formatında şu bilgileri dön: {\"sentiment_label\": \"Negative\", \"Neutral\" veya \"Positive\", \"confidence_score\": 0.95 gibi bir sayı, \"nlp_category\": \"Lojistik\", \"Teknik\", \"Ödeme\", \"İletişim\", \"Ürün\" veya \"İşlem\"}"
+          content: ANALYZE_SYSTEM_PROMPT
         },
         {
           role: "user",
           content: text
         }
       ],
-      model: "llama-3.1-8b-instant",
+      // Sınıflandırma kalitesi için 70B modeli kullanıyoruz. Sohbet endpoint'i (/api/chat)
+      // hız için 8B kalmaya devam ediyor — analizde doğruluk, sohbette latency önceliği.
+      model: ANALYZE_MODEL,
       response_format: { type: "json_object" }
     });
 
     // İçeriğin null olma ihtimalini ortadan kaldıralım
-   const aiContent = chatCompletion.choices[0].message.content || "{}"; 
-   const aiData = JSON.parse(aiContent);
-    
-    // YENİ ŞİKAYETİ VERİTABANINA KAYDET
+    const aiContent = chatCompletion.choices[0].message.content || "{}";
+    const aiData = JSON.parse(aiContent);
+
+    // 1) Önce Prisma DB'ye yazmayı dene (kalıcı kayıt için).
+    //    Başarısız olursa (Prisma kurulu değil veya migrate edilmemiş) sessizce in-memory'e geçeriz.
+    let savedId: number | null = null;
+    if (prisma) {
+      try {
+        const created = await prisma.feedback.create({
+          data: {
+            text,
+            sentiment: aiData.sentiment_label,
+            category: aiData.nlp_category,
+            score: aiData.confidence_score,
+          }
+        });
+        savedId = created.id;
+      } catch (dbErr: any) {
+        console.warn("Prisma yazma başarısız, in-memory devam:", dbErr?.message);
+      }
+    }
+
+    // 2) Fallback / aynalama: in-memory'e de yaz (DB yokken admin panel veri görmeli).
     const newFeedback = {
-      id: Date.now(),
-      text: text,
+      id: savedId ?? Date.now(),
+      text,
       sentiment: aiData.sentiment_label,
       category: aiData.nlp_category,
       score: aiData.confidence_score,
-      date: new Date().toLocaleTimeString("tr-TR", { hour: '2-digit', minute: '2-digit' }) // Saat ve dakika
+      date: fmtTime(new Date())
     };
-    
-    feedbacksDB.unshift(newFeedback); // En yeni şikayet en başa eklenir
-    
+    feedbacksDB.unshift(newFeedback);
+
     res.json({ success: true, data: { analysis: aiData } });
-    
+
   } catch (error: any) {
     console.error("AI Hatası:", error);
     res.status(400).json({ success: false, error: error.message });
@@ -57,20 +96,243 @@ app.post('/api/feedback/analyze', async (req, res) => {
 });
 
 // ADMIN PANELİNE SAYILARI VE "TABLOYU" YOLLAYAN KISIM
-app.get('/api/admin/dashboard-stats', (req, res) => {
+// Önce Prisma'dan okumayı dener, başarısızsa in-memory diziyle aynı şekilde cevap verir.
+app.get('/api/admin/dashboard-stats', async (req, res) => {
   try {
+    if (prisma) {
+      try {
+        const [total, negativeCount, recent] = await Promise.all([
+          prisma.feedback.count(),
+          prisma.feedback.count({ where: { sentiment: 'Negative' } }),
+          prisma.feedback.findMany({
+            orderBy: { created_at: 'desc' },
+            take: 5,
+          })
+        ]);
+
+        const negativeRatio = total === 0 ? "0" : ((negativeCount / total) * 100).toFixed(1);
+
+        return res.json({
+          total_feedbacks: total,
+          resolved_tickets: 0,
+          negative_ratio: negativeRatio,
+          recent_feedbacks: recent.map((f: any) => ({
+            id: f.id,
+            text: f.text,
+            sentiment: f.sentiment,
+            category: f.category,
+            score: f.score,
+            date: fmtTime(f.created_at),
+          }))
+        });
+      } catch (dbErr: any) {
+        console.warn("Prisma okuma başarısız, in-memory'e düşülüyor:", dbErr?.message);
+      }
+    }
+
+    // Fallback: in-memory dizi
     const total = feedbacksDB.length;
     const negativeCount = feedbacksDB.filter(f => f.sentiment === 'Negative').length;
-    const negativeRatio = total === 0 ? 0 : ((negativeCount / total) * 100).toFixed(1);
+    const negativeRatio = total === 0 ? "0" : ((negativeCount / total) * 100).toFixed(1);
 
     res.json({
       total_feedbacks: total,
       resolved_tickets: 0,
       negative_ratio: negativeRatio,
-      recent_feedbacks: feedbacksDB.slice(0, 5) // DOĞRUSU BU!
+      recent_feedbacks: feedbacksDB.slice(0, 5)
     });
   } catch (error) {
     res.status(500).json({ error: "Sunucu hatası" });
+  }
+});
+
+// =====================================================================
+// YENİ: KONUŞMA TABANLI CHAT ENDPOINT'İ
+// ---------------------------------------------------------------------
+// Chatbot'un akıllı, bağlamlı sohbet edebilmesini sağlar.
+// İstemciden gelen "history" (geçmiş mesajlar) ile birlikte yeni mesajı
+// Groq + Llama 3.1 modeline gönderip empatik, doğal bir yanıt üretir.
+// Mevcut /api/feedback/analyze endpoint'ine dokunulmamıştır;
+// admin panelindeki istatistik akışı eskisi gibi devam eder.
+// =====================================================================
+app.post('/api/chat', async (req, res) => {
+  try {
+    const { history = [], message } = req.body;
+
+    if (!message || typeof message !== 'string' || !message.trim()) {
+      return res.status(400).json({ success: false, error: "Mesaj boş olamaz." });
+    }
+
+    // Asistanın kişiliğini ve davranış kurallarını tanımlayan sistem prompt'u
+    const systemPrompt = {
+      role: "system" as const,
+      content: `Sen "AI Feedback Assistant" adında, müşteri geri bildirimlerini dinleyen empatik bir destek asistanısın.
+
+GÖREVLER:
+- Kullanıcıyı dikkatle dinle, ne yaşadığını anla.
+- Kısa, net, samimi yanıtlar ver (en fazla 2-3 cümle).
+- Şikayet varsa empati göster ve çözüm sürecinden bahset.
+- Olumlu geri bildirim varsa içtenlikle teşekkür et.
+- Soru sorulduysa direkt cevapla.
+- Türkçe konuş, profesyonel ama sıcak bir dil kullan.
+- ASLA uydurma bilgi verme. Bilmiyorsan "ilgili ekibe yönlendireyim" de.
+
+ŞİRKET BAĞLAMI (AI Feedback Hub):
+- Müşteri geri bildirimlerini toplayıp yapay zeka ile analiz eden bir platform.
+- Şikayetler şu kategorilere ayrılır: Lojistik, Teknik, Ödeme, İletişim, Ürün, İşlem.
+- Çözüm süresi standart olarak 24-48 saattir.
+- Her şikayet öncelik düzeyine göre ilgili birime yönlendirilir.
+
+KESİNLİKLE YAPMA:
+- "Ben bir yapay zekayım" gibi cümlelerle kendini deşifre etme.
+- Cevap içinde markdown (**, ##, vb.) kullanma.
+- 3 cümleden uzun yanıt üretme.`
+    };
+
+    // Geçmiş mesajları Groq formatına dönüştür (max son 10 mesaj — bağlam ama token tasarrufu)
+    const recentHistory = (Array.isArray(history) ? history.slice(-10) : []).map((m: any) => ({
+      role: (m.role === "bot" || m.role === "assistant") ? "assistant" as const : "user" as const,
+      content: String(m.text || m.content || "")
+    })).filter(m => m.content.trim().length > 0);
+
+    const chatCompletion = await groq.chat.completions.create({
+      messages: [
+        systemPrompt,
+        ...recentHistory,
+        { role: "user", content: message }
+      ],
+      model: "llama-3.1-8b-instant",
+      temperature: 0.7,
+      max_tokens: 250,
+    });
+
+    const reply = chatCompletion.choices[0]?.message?.content?.trim()
+      || "Üzgünüm, şu an yanıt üretemedim. Tekrar dener misiniz?";
+
+    res.json({ success: true, reply });
+
+  } catch (error: any) {
+    console.error("Chat Hatası:", error);
+    res.status(500).json({ success: false, error: error.message || "Sunucu hatası" });
+  }
+});
+
+// =====================================================================
+// YENİ: STREAMING SOHBET ENDPOINT'İ (Server-Sent Events)
+// ---------------------------------------------------------------------
+// /api/chat ile aynı işi yapar AMA cevabı token-by-token akıtır (ChatGPT efekti).
+// Mevcut /api/chat endpoint'i fallback olarak duruyor — frontend stream
+// başarısız olursa ona düşer. Hiçbir mevcut akış bozulmuyor.
+// =====================================================================
+app.post('/api/chat/stream', async (req, res) => {
+  try {
+    const { history = [], message } = req.body;
+
+    if (!message || typeof message !== 'string' || !message.trim()) {
+      return res.status(400).json({ success: false, error: "Mesaj boş olamaz." });
+    }
+
+    // SSE başlık ayarları
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    res.setHeader('X-Accel-Buffering', 'no'); // nginx/proxy buffering kapalı
+    // KRİTİK: Header'ları hemen yolla ve TCP Nagle algoritmasını kapat
+    // → Token'ların biriktirilmeden anında client'a akmasını sağlar.
+    res.flushHeaders();
+    res.socket?.setNoDelay(true);
+
+    const systemPrompt = {
+      role: "system" as const,
+      content: `Sen "AI Feedback Assistant" adında, müşteri geri bildirimlerini dinleyen empatik bir destek asistanısın.
+
+GÖREVLER:
+- Kullanıcıyı dikkatle dinle, ne yaşadığını anla.
+- Kısa, net, samimi yanıtlar ver (en fazla 2-3 cümle).
+- Şikayet varsa empati göster ve çözüm sürecinden bahset.
+- Olumlu geri bildirim varsa içtenlikle teşekkür et.
+- Soru sorulduysa direkt cevapla.
+- Türkçe konuş, profesyonel ama sıcak bir dil kullan.
+- ASLA uydurma bilgi verme. Bilmiyorsan "ilgili ekibe yönlendireyim" de.
+
+ŞİRKET BAĞLAMI (AI Feedback Hub):
+- Müşteri geri bildirimlerini toplayıp yapay zeka ile analiz eden bir platform.
+- Şikayetler şu kategorilere ayrılır: Lojistik, Teknik, Ödeme, İletişim, Ürün, İşlem.
+- Çözüm süresi standart olarak 24-48 saattir.
+
+KESİNLİKLE YAPMA:
+- "Ben bir yapay zekayım" gibi cümlelerle kendini deşifre etme.
+- Cevap içinde markdown (**, ##, vb.) kullanma.
+- 3 cümleden uzun yanıt üretme.`
+    };
+
+    const recentHistory = (Array.isArray(history) ? history.slice(-10) : []).map((m: any) => ({
+      role: (m.role === "bot" || m.role === "assistant") ? "assistant" as const : "user" as const,
+      content: String(m.text || m.content || "")
+    })).filter(m => m.content.trim().length > 0);
+
+    const stream = await groq.chat.completions.create({
+      messages: [systemPrompt, ...recentHistory, { role: "user", content: message }],
+      model: "llama-3.1-8b-instant",
+      temperature: 0.7,
+      max_tokens: 250,
+      stream: true,
+    });
+
+    // Token'ları SSE formatında akıt
+    for await (const chunk of stream) {
+      const token = chunk.choices[0]?.delta?.content || '';
+      if (token) {
+        res.write(`data: ${JSON.stringify({ token })}\n\n`);
+      }
+    }
+
+    res.write('data: [DONE]\n\n');
+    res.end();
+
+  } catch (error: any) {
+    console.error("Stream Hatası:", error);
+    // Stream başlamamışsa normal hata, başlamışsa SSE hatası dön
+    if (!res.headersSent) {
+      res.status(500).json({ success: false, error: error.message });
+    } else {
+      res.write(`data: ${JSON.stringify({ error: error.message || 'stream error' })}\n\n`);
+      res.end();
+    }
+  }
+});
+
+// =====================================================================
+// YENİ: DOĞRULUK ÖLÇÜM SONUÇLARI ENDPOINT'İ
+// ---------------------------------------------------------------------
+// "npm run measure" ile çalıştırılan ölçüm scripti, sonuçları
+// backend/data/accuracy_results.json'a yazar. Bu endpoint o dosyayı okuyup
+// admin paneline gerçek doğruluk yüzdesini sunar (vize raporundaki sahte %95
+// yerine). Eğer ölçüm henüz yapılmadıysa success:false dönüp UI'ı bilgilendirir.
+// =====================================================================
+app.get('/api/admin/accuracy', (req, res) => {
+  try {
+    const path = join(process.cwd(), 'data', 'accuracy_results.json');
+    if (!existsSync(path)) {
+      return res.json({
+        success: false,
+        message: "Doğruluk ölçümü henüz yapılmadı. backend klasöründe 'npm run measure' çalıştırın."
+      });
+    }
+    const data = JSON.parse(readFileSync(path, 'utf-8'));
+    res.json({
+      success: true,
+      timestamp: data.timestamp,
+      model: data.model,
+      total_samples: data.total_samples,
+      category_accuracy_pct: data.category_accuracy_pct,
+      sentiment_accuracy_pct: data.sentiment_accuracy_pct,
+      overall_accuracy_pct: data.overall_accuracy_pct,
+      per_category_accuracy: data.per_category_accuracy
+    });
+  } catch (error: any) {
+    console.error("Accuracy okuma hatası:", error);
+    res.status(500).json({ success: false, error: error.message });
   }
 });
 

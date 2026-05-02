@@ -1,0 +1,361 @@
+{
+  "timestamp": "2026-05-01T19:55:19.248Z",
+  "model": "llama-3.3-70b-versatile",
+  "total_samples": 24,
+  "category_accuracy_pct": 100,
+  "sentiment_accuracy_pct": 100,
+  "overall_accuracy_pct": 100,
+  "correct_counts": {
+    "category": 24,
+    "sentiment": 24,
+    "both": 24
+  },
+  "per_category_accuracy": {
+    "Lojistik": {
+      "total": 5,
+      "correct": 5,
+      "accuracy": 100
+    },
+    "Teknik": {
+      "total": 4,
+      "correct": 4,
+      "accuracy": 100
+    },
+    "Ödeme": {
+      "total": 4,
+      "correct": 4,
+      "accuracy": 100
+    },
+    "İletişim": {
+      "total": 4,
+      "correct": 4,
+      "accuracy": 100
+    },
+    "Ürün": {
+      "total": 4,
+      "correct": 4,
+      "accuracy": 100
+    },
+    "İşlem": {
+      "total": 3,
+      "correct": 3,
+      "accuracy": 100
+    }
+  },
+  "confusion_matrix": {
+    "Lojistik": {
+      "Lojistik": 5,
+      "Teknik": 0,
+      "Ödeme": 0,
+      "İletişim": 0,
+      "Ürün": 0,
+      "İşlem": 0
+    },
+    "Teknik": {
+      "Lojistik": 0,
+      "Teknik": 4,
+      "Ödeme": 0,
+      "İletişim": 0,
+      "Ürün": 0,
+      "İşlem": 0
+    },
+    "Ödeme": {
+      "Lojistik": 0,
+      "Teknik": 0,
+      "Ödeme": 4,
+      "İletişim": 0,
+      "Ürün": 0,
+      "İşlem": 0
+    },
+    "İletişim": {
+      "Lojistik": 0,
+      "Teknik": 0,
+      "Ödeme": 0,
+      "İletişim": 4,
+      "Ürün": 0,
+      "İşlem": 0
+    },
+    "Ürün": {
+      "Lojistik": 0,
+      "Teknik": 0,
+      "Ödeme": 0,
+      "İletişim": 0,
+      "Ürün": 4,
+      "İşlem": 0
+    },
+    "İşlem": {
+      "Lojistik": 0,
+      "Teknik": 0,
+      "Ödeme": 0,
+      "İletişim": 0,
+      "Ürün": 0,
+      "İşlem": 3
+    }
+  },
+  "results": [
+    {
+      "id": 1,
+      "text": "Kargom 4 gündür gelmedi, takip numarası da güncellenmiyor.",
+      "expected_category": "Lojistik",
+      "expected_sentiment": "Negative",
+      "predicted_category": "Lojistik",
+      "predicted_sentiment": "Negative",
+      "confidence_score": 0.9,
+      "category_correct": true,
+      "sentiment_correct": true
+    },
+    {
+      "id": 2,
+      "text": "Yanlış adrese teslim edildi, müşteri hizmetleri konuyu çözmedi.",
+      "expected_category": "Lojistik",
+      "expected_sentiment": "Negative",
+      "predicted_category": "Lojistik",
+      "predicted_sentiment": "Negative",
+      "confidence_score": 0.9,
+      "category_correct": true,
+      "sentiment_correct": true
+    },
+    {
+      "id": 3,
+      "text": "Kurye benimle hiç iletişim kurmadan paketi geri götürdü.",
+      "expected_category": "Lojistik",
+      "expected_sentiment": "Negative",
+      "predicted_category": "Lojistik",
+      "predicted_sentiment": "Negative",
+      "confidence_score": 0.9,
+      "category_correct": true,
+      "sentiment_correct": true
+    },
+    {
+      "id": 4,
+      "text": "Hasarlı bir koliyle teslimat yapıldı, içindeki ürün kırılmış.",
+      "expected_category": "Lojistik",
+      "expected_sentiment": "Negative",
+      "predicted_category": "Lojistik",
+      "predicted_sentiment": "Negative",
+      "confidence_score": 0.95,
+      "category_correct": true,
+      "sentiment_correct": true
+    },
+    {
+      "id": 5,
+      "text": "Mobil uygulamanız ödeme adımında sürekli çöküyor.",
+      "expected_category": "Teknik",
+      "expected_sentiment": "Negative",
+      "predicted_category": "Teknik",
+      "predicted_sentiment": "Negative",
+      "confidence_score": 0.9,
+      "category_correct": true,
+      "sentiment_correct": true
+    },
+    {
+      "id": 6,
+      "text": "Şifre sıfırlama maili 2 saattir gelmedi, hesabıma giremiyorum.",
+      "expected_category": "Teknik",
+      "expected_sentiment": "Negative",
+      "predicted_category": "Teknik",
+      "predicted_sentiment": "Negative",
+      "confidence_score": 0.9,
+      "category_correct": true,
+      "sentiment_correct": true
+    },
+    {
+      "id": 7,
+      "text": "Sepete ekleme butonu çalışmıyor, sayfa yenilenmiyor.",
+      "expected_category": "Teknik",
+      "expected_sentiment": "Negative",
+      "predicted_category": "Teknik",
+      "predicted_sentiment": "Negative",
+      "confidence_score": 0.9,
+      "category_correct": true,
+      "sentiment_correct": true
+    },
+    {
+      "id": 8,
+      "text": "Sitenin ödeme sayfası çok yavaş yükleniyor.",
+      "expected_category": "Teknik",
+      "expected_sentiment": "Negative",
+      "predicted_category": "Teknik",
+      "predicted_sentiment": "Negative",
+      "confidence_score": 0.9,
+      "category_correct": true,
+      "sentiment_correct": true
+    },
+    {
+      "id": 9,
+      "text": "Hesabımdan iki kez tahsilat yapılmış, iadenizi bekliyorum.",
+      "expected_category": "Ödeme",
+      "expected_sentiment": "Negative",
+      "predicted_category": "Ödeme",
+      "predicted_sentiment": "Negative",
+      "confidence_score": 0.9,
+      "category_correct": true,
+      "sentiment_correct": true
+    },
+    {
+      "id": 10,
+      "text": "İade ettiğim ürünün parası 10 gündür hesabıma yatmadı.",
+      "expected_category": "Ödeme",
+      "expected_sentiment": "Negative",
+      "predicted_category": "Ödeme",
+      "predicted_sentiment": "Negative",
+      "confidence_score": 0.9,
+      "category_correct": true,
+      "sentiment_correct": true
+    },
+    {
+      "id": 11,
+      "text": "Kurumsal fatura talep ettim ama hâlâ kesilmedi.",
+      "expected_category": "Ödeme",
+      "expected_sentiment": "Negative",
+      "predicted_category": "Ödeme",
+      "predicted_sentiment": "Negative",
+      "confidence_score": 0.9,
+      "category_correct": true,
+      "sentiment_correct": true
+    },
+    {
+      "id": 12,
+      "text": "Taksit seçeneği ödeme ekranında görünmüyor.",
+      "expected_category": "Ödeme",
+      "expected_sentiment": "Negative",
+      "predicted_category": "Ödeme",
+      "predicted_sentiment": "Negative",
+      "confidence_score": 0.9,
+      "category_correct": true,
+      "sentiment_correct": true
+    },
+    {
+      "id": 13,
+      "text": "Müşteri temsilcisi çok kaba davrandı, telefonu yüzüme kapattı.",
+      "expected_category": "İletişim",
+      "expected_sentiment": "Negative",
+      "predicted_category": "İletişim",
+      "predicted_sentiment": "Negative",
+      "confidence_score": 0.99,
+      "category_correct": true,
+      "sentiment_correct": true
+    },
+    {
+      "id": 14,
+      "text": "Destek talebime 3 gündür hiç dönüş yapılmadı.",
+      "expected_category": "İletişim",
+      "expected_sentiment": "Negative",
+      "predicted_category": "İletişim",
+      "predicted_sentiment": "Negative",
+      "confidence_score": 0.9,
+      "category_correct": true,
+      "sentiment_correct": true
+    },
+    {
+      "id": 15,
+      "text": "Canlı destek asistanınız sorumu anlamadı, yetersiz kaldı.",
+      "expected_category": "İletişim",
+      "expected_sentiment": "Negative",
+      "predicted_category": "İletişim",
+      "predicted_sentiment": "Negative",
+      "confidence_score": 0.9,
+      "category_correct": true,
+      "sentiment_correct": true
+    },
+    {
+      "id": 16,
+      "text": "Ürün kutudan kırık çıktı, paketleme çok özensizdi.",
+      "expected_category": "Ürün",
+      "expected_sentiment": "Negative",
+      "predicted_category": "Ürün",
+      "predicted_sentiment": "Negative",
+      "confidence_score": 0.9,
+      "category_correct": true,
+      "sentiment_correct": true
+    },
+    {
+      "id": 17,
+      "text": "Görseldekinden tamamen farklı bir ürün geldi, çok hayal kırıklığı.",
+      "expected_category": "Ürün",
+      "expected_sentiment": "Negative",
+      "predicted_category": "Ürün",
+      "predicted_sentiment": "Negative",
+      "confidence_score": 0.9,
+      "category_correct": true,
+      "sentiment_correct": true
+    },
+    {
+      "id": 18,
+      "text": "Kutudan eksik parçalar çıktı, bir an önce gönderin lütfen.",
+      "expected_category": "Ürün",
+      "expected_sentiment": "Negative",
+      "predicted_category": "Ürün",
+      "predicted_sentiment": "Negative",
+      "confidence_score": 0.9,
+      "category_correct": true,
+      "sentiment_correct": true
+    },
+    {
+      "id": 19,
+      "text": "Aboneliğimi iptal etmek istiyorum ama buton tepki vermiyor.",
+      "expected_category": "İşlem",
+      "expected_sentiment": "Negative",
+      "predicted_category": "İşlem",
+      "predicted_sentiment": "Negative",
+      "confidence_score": 0.9,
+      "category_correct": true,
+      "sentiment_correct": true
+    },
+    {
+      "id": 20,
+      "text": "Kampanya kodum sepette geçersiz görünüyor, neden anlamadım.",
+      "expected_category": "İşlem",
+      "expected_sentiment": "Negative",
+      "predicted_category": "İşlem",
+      "predicted_sentiment": "Negative",
+      "confidence_score": 0.8,
+      "category_correct": true,
+      "sentiment_correct": true
+    },
+    {
+      "id": 21,
+      "text": "Hesap silme işlemi başarısız oldu, ne yapmam gerekiyor?",
+      "expected_category": "İşlem",
+      "expected_sentiment": "Negative",
+      "predicted_category": "İşlem",
+      "predicted_sentiment": "Negative",
+      "confidence_score": 0.8,
+      "category_correct": true,
+      "sentiment_correct": true
+    },
+    {
+      "id": 22,
+      "text": "Çok hızlı teslimat oldu, gerçekten teşekkür ederim!",
+      "expected_category": "Lojistik",
+      "expected_sentiment": "Positive",
+      "predicted_category": "Lojistik",
+      "predicted_sentiment": "Positive",
+      "confidence_score": 0.9,
+      "category_correct": true,
+      "sentiment_correct": true
+    },
+    {
+      "id": 23,
+      "text": "Müşteri temsilciniz çok yardımsever ve nazikti, memnun kaldım.",
+      "expected_category": "İletişim",
+      "expected_sentiment": "Positive",
+      "predicted_category": "İletişim",
+      "predicted_sentiment": "Positive",
+      "confidence_score": 0.9,
+      "category_correct": true,
+      "sentiment_correct": true
+    },
+    {
+      "id": 24,
+      "text": "Ürün kalitesi açıklamadakiyle birebir aynı, bayıldım.",
+      "expected_category": "Ürün",
+      "expected_sentiment": "Positive",
+      "predicted_category": "Ürün",
+      "predicted_sentiment": "Positive",
+      "confidence_score": 0.99,
+      "category_correct": true,
+      "sentiment_correct": true
+    }
+  ]
+}
