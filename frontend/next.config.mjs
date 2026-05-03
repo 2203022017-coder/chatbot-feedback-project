@@ -1,8 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  eslint: {
-    ignoreDuringBuilds: true,
-  },
+  // Next.js 15+ artık eslint anahtarını desteklemiyor — kaldırıldı.
+  // ESLint kontrolü ayrı bir adımda (CI veya `npm run lint`) yapılabilir.
   typescript: {
     ignoreBuildErrors: true,
   },
