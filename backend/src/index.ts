@@ -58,11 +58,18 @@ app.post('/api/feedback/analyze', async (req, res) => {
     const aiData = JSON.parse(aiContent);
 
     // HİBRİT DESTEK MANTIĞI:
-    // Model güven skoru 0.7'nin altındaysa otomatik insan operatöre yönlendir.
+    // Model güven skoru 0.85'in altındaysa otomatik insan operatöre yönlendir.
+    // Llama 3.3-70B çoğu şikayette yüksek confidence dönüyor; 0.85 eşiği
+    // gerçekten kafa karıştırıcı / muğlak şikayetleri yakalar.
     // Literatürde [Jain & Kumar 2019], [Følstad & Brandtzæg 2018] de "saf chatbot
     // değil, hibrit insan destekli yapı" önerilmektedir.
-    const HUMAN_HELP_THRESHOLD = 0.7;
-    const needsHuman = (Number(aiData.confidence_score) || 0) < HUMAN_HELP_THRESHOLD;
+    const HUMAN_HELP_THRESHOLD = 0.85;
+    const confidence = Number(aiData.confidence_score) || 0;
+    const needsHuman = confidence < HUMAN_HELP_THRESHOLD;
+    console.log(
+      `📊 Analiz: cat=${aiData.nlp_category}, sent=${aiData.sentiment_label}, ` +
+      `conf=${confidence.toFixed(2)}, needs_human=${needsHuman ? "✅ YES" : "❌ NO"}`
+    );
 
     // 1) Önce Prisma DB'ye yazmayı dene (kalıcı kayıt için).
     //    Başarısız olursa (Prisma kurulu değil veya migrate edilmemiş) sessizce in-memory'e geçeriz.
