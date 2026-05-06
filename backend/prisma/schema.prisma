@@ -17,15 +17,19 @@ datasource db {
 // Mevcut in-memory feedbacksDB dizisinin DB karşılığı.
 // ====================================================================
 model Feedback {
-  id         Int      @id @default(autoincrement())
-  text       String
-  sentiment  String   // Negative, Neutral, Positive
-  category   String   // Lojistik, Teknik, Ödeme, İletişim, Ürün, İşlem
-  score      Float    // 0.0 - 1.0
-  created_at DateTime @default(now())
+  id           Int      @id @default(autoincrement())
+  text         String
+  sentiment    String   // Negative, Neutral, Positive
+  category     String   // Lojistik, Teknik, Ödeme, İletişim, Ürün, İşlem
+  score        Float    // 0.0 - 1.0 (modelin güven skoru)
+  // HİBRİT DESTEK: model emin değilse (score < 0.7) bu alan true olur
+  // → admin panelde insan operatöre yönlendirilmek üzere işaretlenir.
+  needs_human  Boolean  @default(false)
+  created_at   DateTime @default(now())
 
   @@index([created_at])
   @@index([sentiment])
+  @@index([needs_human])
 }
 
 // ====================================================================

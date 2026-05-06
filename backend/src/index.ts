@@ -57,6 +57,13 @@ app.post('/api/feedback/analyze', async (req, res) => {
     const aiContent = chatCompletion.choices[0].message.content || "{}";
     const aiData = JSON.parse(aiContent);
 
+    // HİBRİT DESTEK MANTIĞI:
+    // Model güven skoru 0.7'nin altındaysa otomatik insan operatöre yönlendir.
+    // Literatürde [Jain & Kumar 2019], [Følstad & Brandtzæg 2018] de "saf chatbot
+    // değil, hibrit insan destekli yapı" önerilmektedir.
+    const HUMAN_HELP_THRESHOLD = 0.7;
+    const needsHuman = (Number(aiData.confidence_score) || 0) < HUMAN_HELP_THRESHOLD;
+
     // 1) Önce Prisma DB'ye yazmayı dene (kalıcı kayıt için).
     //    Başarısız olursa (Prisma kurulu değil veya migrate edilmemiş) sessizce in-memory'e geçeriz.
     let savedId: number | null = null;
@@ -68,6 +75,7 @@ app.post('/api/feedback/analyze', async (req, res) => {
             sentiment: aiData.sentiment_label,
             category: aiData.nlp_category,
             score: aiData.confidence_score,
+            needs_human: needsHuman,
           }
         });
         savedId = created.id;
@@ -83,11 +91,13 @@ app.post('/api/feedback/analyze', async (req, res) => {
       sentiment: aiData.sentiment_label,
       category: aiData.nlp_category,
       score: aiData.confidence_score,
+      needs_human: needsHuman,
       date: fmtTime(new Date())
     };
     feedbacksDB.unshift(newFeedback);
 
-    res.json({ success: true, data: { analysis: aiData } });
+    // Yanıta needs_human bilgisi de eklendi → frontend bot mesajında özel banner gösterebilsin.
+    res.json({ success: true, data: { analysis: aiData, needs_human: needsHuman } });
 
   } catch (error: any) {
     console.error("AI Hatası:", error);
@@ -101,9 +111,10 @@ app.get('/api/admin/dashboard-stats', async (req, res) => {
   try {
     if (prisma) {
       try {
-        const [total, negativeCount, recent] = await Promise.all([
+        const [total, negativeCount, humanHelpCount, recent] = await Promise.all([
           prisma.feedback.count(),
           prisma.feedback.count({ where: { sentiment: 'Negative' } }),
+          prisma.feedback.count({ where: { needs_human: true } }),
           prisma.feedback.findMany({
             orderBy: { created_at: 'desc' },
             take: 5,
@@ -116,12 +127,14 @@ app.get('/api/admin/dashboard-stats', async (req, res) => {
           total_feedbacks: total,
           resolved_tickets: 0,
           negative_ratio: negativeRatio,
+          human_help_count: humanHelpCount, // Hibrit destek metriği — kaç şikayet insan operatöre yönlendirildi
           recent_feedbacks: recent.map((f: any) => ({
             id: f.id,
             text: f.text,
             sentiment: f.sentiment,
             category: f.category,
             score: f.score,
+            needs_human: f.needs_human,
             date: fmtTime(f.created_at),
           }))
         });
@@ -133,12 +146,14 @@ app.get('/api/admin/dashboard-stats', async (req, res) => {
     // Fallback: in-memory dizi
     const total = feedbacksDB.length;
     const negativeCount = feedbacksDB.filter(f => f.sentiment === 'Negative').length;
+    const humanHelpCount = feedbacksDB.filter(f => f.needs_human === true).length;
     const negativeRatio = total === 0 ? "0" : ((negativeCount / total) * 100).toFixed(1);
 
     res.json({
       total_feedbacks: total,
       resolved_tickets: 0,
       negative_ratio: negativeRatio,
+      human_help_count: humanHelpCount,
       recent_feedbacks: feedbacksDB.slice(0, 5)
     });
   } catch (error) {

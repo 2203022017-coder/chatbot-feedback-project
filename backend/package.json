@@ -4,9 +4,10 @@
   "description": "Yapay Zeka Destekli Müşteri Geri Bildirim Analizi",
   "main": "dist/index.js",
   "scripts": {
-    "start": "node dist/index.js",
+    "start": "prisma migrate deploy && node dist/index.js",
     "dev": "nodemon src/index.ts",
     "build": "tsc",
+    "postinstall": "prisma generate",
     "measure": "ts-node src/scripts/measureAccuracy.ts",
     "db:setup": "prisma generate && prisma migrate dev --name init"
   },

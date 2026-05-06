@@ -70,6 +70,7 @@ const AnalysisCircle = ({ percent, label, dark = false }: { percent: number, lab
     total_feedbacks: 0,
     resolved_tickets: 0,
     negative_ratio: "0",
+    human_help_count: 0,   // Hibrit destek metriği — insan operatöre yönlendirilen şikayet sayısı
     recent_feedbacks: []
   });
 
@@ -202,11 +203,14 @@ const chartData = {
           <p className="text-sm font-bold text-zinc-500 uppercase tracking-widest">Müşteri Deneyimi Analiz Merkezi</p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
           {[
             { t: "Toplam Bildirim", v: dashboardStats.total_feedbacks, c: "text-indigo-600" },
             { t: "Çözülen Şikayet", v: dashboardStats.resolved_tickets, c: "text-emerald-600" },
             { t: "Negatif Duygu Oranı", v: `%${dashboardStats.negative_ratio}`, c: "text-rose-600" },
+            // HİBRİT DESTEK: confidence < 0.7 olan şikayetler insan operatöre yönlendirildi.
+            // Bu metrik, raporun [3] ve [7] kaynaklarındaki "hibrit destek" önerisinin somut göstergesi.
+            { t: "İnsan Yardımı", v: dashboardStats.human_help_count ?? 0, c: "text-amber-600" },
             // Sahte sabit (%95) yerine ölçüm scriptinin ürettiği gerçek doğruluk sayısı.
             // Eğer ölçüm henüz yapılmadıysa "—" gösterip kullanıcıyı şaşırtmıyoruz.
             {
@@ -271,9 +275,25 @@ const chartData = {
                 </thead>
                 <tbody className="text-sm font-bold text-zinc-700">
                   {dashboardStats.recent_feedbacks.map((f: any) => (
-                    <tr key={f.id} className="border-b border-zinc-50 hover:bg-zinc-50/50 transition-colors">
+                    <tr
+                      key={f.id}
+                      className={cn(
+                        "border-b border-zinc-50 transition-colors",
+                        // HİBRİT DESTEK görsel sinyali: insan yardımı gereken satırlar amber/sarı çerçeveli
+                        f.needs_human
+                          ? "bg-amber-50/40 hover:bg-amber-50/70 border-l-4 border-l-amber-500"
+                          : "hover:bg-zinc-50/50"
+                      )}
+                    >
                       <td className="p-6 text-zinc-400 font-medium">{f.date}</td>
-                      <td className="p-6 max-w-md truncate text-zinc-900">{f.text}</td>
+                      <td className="p-6 max-w-md truncate text-zinc-900">
+                        {f.text}
+                        {f.needs_human && (
+                          <span className="ml-2 inline-block px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-widest bg-amber-100 text-amber-700">
+                            ⚠ İnsan Yardımı
+                          </span>
+                        )}
+                      </td>
                       <td className="p-6">
                         <span className="bg-zinc-100 text-zinc-600 px-3 py-1 rounded-full text-[10px] uppercase tracking-tighter">
                           {f.category}
@@ -282,7 +302,7 @@ const chartData = {
                       <td className="p-6 text-right flex flex-col items-end gap-1">
                         <span className={cn(
                           "px-3 py-1 rounded-full text-[10px] uppercase tracking-tighter",
-                          f.sentiment === 'Negative' ? 'bg-rose-50 text-rose-600' : 
+                          f.sentiment === 'Negative' ? 'bg-rose-50 text-rose-600' :
                           f.sentiment === 'Positive' ? 'bg-emerald-50 text-emerald-600' : 'bg-zinc-100 text-zinc-600'
                         )}>
                           {f.sentiment === 'Negative' ? '🔴 Negatif' : f.sentiment === 'Positive' ? '🟢 Pozitif' : '🟡 Nötr'}
@@ -557,6 +577,12 @@ useEffect(() => {
         { l: "Güven Skoru", v: Math.round(aiData.confidence_score * 100) },
         { l: "Kategori",    v: aiData.nlp_category }
       ];
+
+      // HİBRİT DESTEK: backend confidence < 0.7 olduğunda needs_human=true gönderir.
+      // Bu durumda kullanıcıya "uzman temsilciye yönlendirildiniz" banner'ı gösteriyoruz.
+      if (analyzeResult?.data?.needs_human) {
+        botMessage.needsHuman = true;
+      }
     }
 
     // Streaming başarılıysa son mesajı in-place replace ediyoruz (akan text + badge birleşsin).
@@ -674,6 +700,15 @@ useEffect(() => {
                   <div className={cn("p-4 rounded-2xl text-[13px] leading-relaxed max-w-[92%] shadow-sm", m.role === "bot" ? "bg-white border text-zinc-700 self-start" : "bg-indigo-600 text-white self-end ml-auto")}>
                     {m.text}
                     
+                    {/* HİBRİT DESTEK BANNER'I — confidence düşük ise insana yönlendir */}
+                    {m.needsHuman && (
+                      <div className="mt-3 mb-1 px-3 py-2.5 rounded-xl text-[11px] font-black bg-amber-50 text-amber-800 border border-amber-300 text-center leading-relaxed">
+                        👤 Şikayetiniz <u>uzman temsilcimize</u> yönlendirildi.
+                        <br/>
+                        <span className="font-medium text-amber-700 normal-case text-[10px]">En kısa sürede sizinle iletişime geçilecek.</span>
+                      </div>
+                    )}
+
                     {/* DUYGU ANALİZİ ROZETİ */}
                     {m.sentimentBadge && (
                       <div className={cn("mt-4 mb-2 px-3 py-2 rounded-xl text-[10px] font-black uppercase border text-center", m.sentimentBadge.classes)}>
