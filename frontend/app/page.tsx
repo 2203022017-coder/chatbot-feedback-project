@@ -66,13 +66,25 @@ const AnalysisCircle = ({ percent, label, dark = false }: { percent: number, lab
 };
   // --- CANLI YÖNETİCİ PANELİ (ADMIN DASHBOARD) BİLEŞENİ ---
   const AdminDashboard = ({ onExit }: { onExit: () => void }) => {
-  const [dashboardStats, setDashboardStats] = useState({
+  const [dashboardStats, setDashboardStats] = useState<{
+    total_feedbacks: number;
+    resolved_tickets: number;
+    negative_ratio: string;
+    human_help_count: number;
+    top_brands: { brand: string; count: number }[];
+    recent_feedbacks: any[];
+  }>({
     total_feedbacks: 0,
     resolved_tickets: 0,
     negative_ratio: "0",
     human_help_count: 0,   // Hibrit destek metriği — insan operatöre yönlendirilen şikayet sayısı
+    top_brands: [],         // Marka entegrasyonu — en çok şikayet alan markalar
     recent_feedbacks: []
   });
+
+  // Admin panel marka filtresi: tabloyu hangi markaya göre süzeceğiz?
+  // null → tüm şikayetler. Brand chip'lerine tıklayarak filtreleme yapılır.
+  const [brandFilter, setBrandFilter] = useState<string | null>(null);
 
   // Doğruluk ölçüm sonuçları — backend/data/accuracy_results.json'dan okunur.
   // 'npm run measure' çalıştırılınca dolar; çalıştırılmamışsa measured=false kalır.
@@ -91,13 +103,15 @@ const AnalysisCircle = ({ percent, label, dark = false }: { percent: number, lab
       return;
     }
 
-    const headers = ["Saat", "Mesaj", "Kategori", "Duygu", "Skor"];
+    const headers = ["Saat", "Marka", "Mesaj", "Kategori", "Duygu", "Skor", "İnsan Yardımı"];
     const rows = dashboardStats.recent_feedbacks.map((f: any) => [
       f.date,
-      `"${f.text.replace(/"/g, '""')}"`, 
+      f.brand || "Belirtilmemiş",
+      `"${f.text.replace(/"/g, '""')}"`,
       f.category,
       f.sentiment,
-      `%${(f.score * 100).toFixed(0)}`
+      `%${(f.score * 100).toFixed(0)}`,
+      f.needs_human ? "Evet" : "Hayır"
     ]);
 
     const csvContent = [headers, ...rows].map(e => e.join(",")).join("\n");
@@ -264,17 +278,53 @@ const chartData = {
             </div>
           ) : (
             <div className="overflow-x-auto">
+              {/* MARKA FİLTRESİ: backend'den gelen top_brands chip'leri.
+                  Tıklanan markaya göre tablo süzülür; "Tümü" filtreyi sıfırlar. */}
+              {dashboardStats.top_brands && dashboardStats.top_brands.length > 0 && (
+                <div className="px-8 pt-6 pb-2 flex flex-wrap items-center gap-2 border-b border-zinc-100">
+                  <span className="text-[10px] font-black uppercase tracking-widest text-zinc-400 mr-2">Markaya Göre Filtrele:</span>
+                  <button
+                    onClick={() => setBrandFilter(null)}
+                    className={cn(
+                      "px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest transition-colors",
+                      brandFilter === null
+                        ? "bg-indigo-600 text-white"
+                        : "bg-zinc-100 text-zinc-600 hover:bg-zinc-200"
+                    )}
+                  >
+                    Tümü ({dashboardStats.total_feedbacks})
+                  </button>
+                  {dashboardStats.top_brands.map((b) => (
+                    <button
+                      key={b.brand}
+                      onClick={() => setBrandFilter(b.brand)}
+                      className={cn(
+                        "px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest transition-colors",
+                        brandFilter === b.brand
+                          ? "bg-indigo-600 text-white"
+                          : "bg-zinc-100 text-zinc-600 hover:bg-zinc-200"
+                      )}
+                    >
+                      {b.brand} ({b.count})
+                    </button>
+                  ))}
+                </div>
+              )}
+
               <table className="w-full text-left">
                 <thead className="bg-zinc-50/50 border-b border-zinc-100">
                   <tr className="text-[10px] font-black uppercase tracking-widest text-zinc-400">
                     <th className="p-6">Saat</th>
+                    <th className="p-6">Marka</th>
                     <th className="p-6">Müşteri Mesajı</th>
                     <th className="p-6">Kategori</th>
                     <th className="p-6 text-right">Duygu & Güven</th>
                   </tr>
                 </thead>
                 <tbody className="text-sm font-bold text-zinc-700">
-                  {dashboardStats.recent_feedbacks.map((f: any) => (
+                  {dashboardStats.recent_feedbacks
+                    .filter((f: any) => brandFilter === null || f.brand === brandFilter)
+                    .map((f: any) => (
                     <tr
                       key={f.id}
                       className={cn(
@@ -286,6 +336,16 @@ const chartData = {
                       )}
                     >
                       <td className="p-6 text-zinc-400 font-medium">{f.date}</td>
+                      <td className="p-6">
+                        <span className={cn(
+                          "px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-tighter",
+                          f.brand && f.brand !== "Belirtilmemiş"
+                            ? "bg-indigo-50 text-indigo-700"
+                            : "bg-zinc-100 text-zinc-400 italic"
+                        )}>
+                          {f.brand || "Belirtilmemiş"}
+                        </span>
+                      </td>
                       <td className="p-6 max-w-md truncate text-zinc-900">
                         {f.text}
                         {f.needs_human && (
@@ -578,10 +638,18 @@ useEffect(() => {
         { l: "Kategori",    v: aiData.nlp_category }
       ];
 
-      // HİBRİT DESTEK: backend confidence < 0.7 olduğunda needs_human=true gönderir.
+      // HİBRİT DESTEK: backend confidence < 0.85 olduğunda needs_human=true gönderir.
       // Bu durumda kullanıcıya "uzman temsilciye yönlendirildiniz" banner'ı gösteriyoruz.
       if (analyzeResult?.data?.needs_human) {
         botMessage.needsHuman = true;
+      }
+
+      // MARKA ENTEGRASYONU: Llama şikayet metninden marka adını çıkardıysa
+      // (örn. "Trendyol", "Getir"), bunu botMessage'a ekleyelim.
+      // "Belirtilmemiş" değerlerini göstermiyoruz (kullanıcı yazmamış demek).
+      const detectedBrand: string | undefined = analyzeResult?.data?.brand;
+      if (detectedBrand && detectedBrand !== "Belirtilmemiş") {
+        botMessage.brand = detectedBrand;
       }
     }
 
@@ -700,6 +768,15 @@ useEffect(() => {
                   <div className={cn("p-4 rounded-2xl text-[13px] leading-relaxed max-w-[92%] shadow-sm", m.role === "bot" ? "bg-white border text-zinc-700 self-start" : "bg-indigo-600 text-white self-end ml-auto")}>
                     {m.text}
                     
+                    {/* MARKA ROZETİ — Llama metinden marka adını çıkardıysa göster.
+                        Kullanıcının "doğru tespit edildi mi?" görsel onayı. */}
+                    {m.brand && (
+                      <div className="mt-3 inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-[10px] font-black bg-indigo-50 text-indigo-700 border border-indigo-100">
+                        <span>🏢 Marka:</span>
+                        <span className="font-black tracking-wide">{m.brand}</span>
+                      </div>
+                    )}
+
                     {/* HİBRİT DESTEK BANNER'I — confidence düşük ise insana yönlendir */}
                     {m.needsHuman && (
                       <div className="mt-3 mb-1 px-3 py-2.5 rounded-xl text-[11px] font-black bg-amber-50 text-amber-800 border border-amber-300 text-center leading-relaxed">

@@ -66,8 +66,11 @@ app.post('/api/feedback/analyze', async (req, res) => {
     const HUMAN_HELP_THRESHOLD = 0.85;
     const confidence = Number(aiData.confidence_score) || 0;
     const needsHuman = confidence < HUMAN_HELP_THRESHOLD;
+    // Marka adı: Llama'nın çıkardığı değer veya "Belirtilmemiş" (boş/null/undefined fallback).
+    const brand = (aiData.brand && String(aiData.brand).trim()) || "Belirtilmemiş";
+
     console.log(
-      `📊 Analiz: cat=${aiData.nlp_category}, sent=${aiData.sentiment_label}, ` +
+      `📊 Analiz: brand=${brand}, cat=${aiData.nlp_category}, sent=${aiData.sentiment_label}, ` +
       `conf=${confidence.toFixed(2)}, needs_human=${needsHuman ? "✅ YES" : "❌ NO"}`
     );
 
@@ -81,6 +84,7 @@ app.post('/api/feedback/analyze', async (req, res) => {
             text,
             sentiment: aiData.sentiment_label,
             category: aiData.nlp_category,
+            brand,
             score: aiData.confidence_score,
             needs_human: needsHuman,
           }
@@ -97,14 +101,15 @@ app.post('/api/feedback/analyze', async (req, res) => {
       text,
       sentiment: aiData.sentiment_label,
       category: aiData.nlp_category,
+      brand,
       score: aiData.confidence_score,
       needs_human: needsHuman,
       date: fmtTime(new Date())
     };
     feedbacksDB.unshift(newFeedback);
 
-    // Yanıta needs_human bilgisi de eklendi → frontend bot mesajında özel banner gösterebilsin.
-    res.json({ success: true, data: { analysis: aiData, needs_human: needsHuman } });
+    // Yanıta needs_human ve brand bilgisi de eklendi → frontend gösterimi için.
+    res.json({ success: true, data: { analysis: aiData, needs_human: needsHuman, brand } });
 
   } catch (error: any) {
     console.error("AI Hatası:", error);
@@ -118,13 +123,20 @@ app.get('/api/admin/dashboard-stats', async (req, res) => {
   try {
     if (prisma) {
       try {
-        const [total, negativeCount, humanHelpCount, recent] = await Promise.all([
+        const [total, negativeCount, humanHelpCount, recent, brandGroups] = await Promise.all([
           prisma.feedback.count(),
           prisma.feedback.count({ where: { sentiment: 'Negative' } }),
           prisma.feedback.count({ where: { needs_human: true } }),
           prisma.feedback.findMany({
             orderBy: { created_at: 'desc' },
-            take: 5,
+            take: 8,
+          }),
+          // Marka dağılımı: en çok şikayet alan markaları say (top 6).
+          prisma.feedback.groupBy({
+            by: ['brand'],
+            _count: { brand: true },
+            orderBy: { _count: { brand: 'desc' } },
+            take: 6,
           })
         ]);
 
@@ -135,9 +147,15 @@ app.get('/api/admin/dashboard-stats', async (req, res) => {
           resolved_tickets: 0,
           negative_ratio: negativeRatio,
           human_help_count: humanHelpCount, // Hibrit destek metriği — kaç şikayet insan operatöre yönlendirildi
+          // MARKA ENTEGRASYONU: en çok şikayet alan markalar listesi.
+          top_brands: brandGroups.map((g: any) => ({
+            brand: g.brand,
+            count: g._count.brand,
+          })),
           recent_feedbacks: recent.map((f: any) => ({
             id: f.id,
             text: f.text,
+            brand: f.brand,
             sentiment: f.sentiment,
             category: f.category,
             score: f.score,
@@ -150,18 +168,29 @@ app.get('/api/admin/dashboard-stats', async (req, res) => {
       }
     }
 
-    // Fallback: in-memory dizi
+    // Fallback: in-memory dizi (DB yoksa). Marka istatistiklerini elle hesaplıyoruz.
     const total = feedbacksDB.length;
     const negativeCount = feedbacksDB.filter(f => f.sentiment === 'Negative').length;
     const humanHelpCount = feedbacksDB.filter(f => f.needs_human === true).length;
     const negativeRatio = total === 0 ? "0" : ((negativeCount / total) * 100).toFixed(1);
+
+    const brandCounts: Record<string, number> = {};
+    for (const f of feedbacksDB) {
+      const b = f.brand || "Belirtilmemiş";
+      brandCounts[b] = (brandCounts[b] || 0) + 1;
+    }
+    const topBrands = Object.entries(brandCounts)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 6)
+      .map(([brand, count]) => ({ brand, count }));
 
     res.json({
       total_feedbacks: total,
       resolved_tickets: 0,
       negative_ratio: negativeRatio,
       human_help_count: humanHelpCount,
-      recent_feedbacks: feedbacksDB.slice(0, 5)
+      top_brands: topBrands,
+      recent_feedbacks: feedbacksDB.slice(0, 8)
     });
   } catch (error) {
     res.status(500).json({ error: "Sunucu hatası" });

@@ -47,8 +47,25 @@ DUYGU ETİKETLERİ:
 - Positive: Teşekkür, övgü, memnuniyet ifadesi.
 - Neutral: Soru sorma, bilgi talebi, duygusuz ifade.
 
+MARKA / FİRMA ÇIKARIMI:
+Şikayet metninde herhangi bir marka, firma veya hizmet adı geçiyorsa onu "brand" alanında çıkar.
+Örnekler:
+- "Trendyol'dan aldığım ürün gelmedi" → brand: "Trendyol"
+- "Yemeksepeti yine geç" → brand: "Yemeksepeti"
+- "Getir kuryesi kaba davrandı" → brand: "Getir"
+- "Hepsiburada'da iade işlemim çözülmedi" → brand: "Hepsiburada"
+- "Migros uygulaması açılmıyor" → brand: "Migros"
+- "Turkcell faturam yanlış" → brand: "Turkcell"
+- "kargom geç geldi" (marka adı yoksa) → brand: "Belirtilmemiş"
+- "uygulama çöküyor" (marka adı yoksa) → brand: "Belirtilmemiş"
+
+KURALLAR:
+- Marka adı SADECE metinde açıkça geçtiyse yaz.
+- Tahmin yürütme, uydurma. Şüpheli ise "Belirtilmemiş" yaz.
+- Marka adını ORİJİNAL yazımıyla (Türkçe karakter, büyük harf vs.) yaz.
+
 YANITINI KESİNLİKLE şu JSON formatında ver, başka HİÇBİR şey ekleme:
-{"sentiment_label":"Negative|Neutral|Positive","confidence_score":0.0-1.0,"nlp_category":"Lojistik|Teknik|Ödeme|İletişim|Ürün|İşlem"}`;
+{"sentiment_label":"Negative|Neutral|Positive","confidence_score":0.0-1.0,"nlp_category":"Lojistik|Teknik|Ödeme|İletişim|Ürün|İşlem","brand":"<marka adı veya 'Belirtilmemiş'>"}`;
 
 /**
  * Sınıflandırma kalitesi için /api/feedback/analyze 70B modeli kullanır.
