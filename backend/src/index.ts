@@ -108,8 +108,17 @@ app.post('/api/feedback/analyze', async (req, res) => {
     };
     feedbacksDB.unshift(newFeedback);
 
-    // Yanıta needs_human ve brand bilgisi de eklendi → frontend gösterimi için.
-    res.json({ success: true, data: { analysis: aiData, needs_human: needsHuman, brand } });
+    // Yanıta id, needs_human ve brand bilgisi de eklendi → frontend gösterimi için.
+    // id'yi frontend ileride memnuniyet anketi (helpful) için /api/feedback/:id/rate'e yollayacak.
+    res.json({
+      success: true,
+      data: {
+        id: newFeedback.id,
+        analysis: aiData,
+        needs_human: needsHuman,
+        brand,
+      }
+    });
 
   } catch (error: any) {
     console.error("AI Hatası:", error);
@@ -123,7 +132,7 @@ app.get('/api/admin/dashboard-stats', async (req, res) => {
   try {
     if (prisma) {
       try {
-        const [total, negativeCount, humanHelpCount, recent, brandGroups] = await Promise.all([
+        const [total, negativeCount, humanHelpCount, recent, brandGroups, helpfulYes, helpfulRated] = await Promise.all([
           prisma.feedback.count(),
           prisma.feedback.count({ where: { sentiment: 'Negative' } }),
           prisma.feedback.count({ where: { needs_human: true } }),
@@ -137,16 +146,24 @@ app.get('/api/admin/dashboard-stats', async (req, res) => {
             _count: { brand: true },
             orderBy: { _count: { brand: 'desc' } },
             take: 6,
-          })
+          }),
+          // MEMNUNİYET ANKETİ: 👍 sayısı
+          prisma.feedback.count({ where: { helpful: true } }),
+          // İşaretlenmiş toplam (👍 + 👎)
+          prisma.feedback.count({ where: { NOT: { helpful: null } } })
         ]);
 
         const negativeRatio = total === 0 ? "0" : ((negativeCount / total) * 100).toFixed(1);
+        const helpfulRatio = helpfulRated === 0 ? null : ((helpfulYes / helpfulRated) * 100).toFixed(0);
 
         return res.json({
           total_feedbacks: total,
           resolved_tickets: 0,
           negative_ratio: negativeRatio,
           human_help_count: humanHelpCount, // Hibrit destek metriği — kaç şikayet insan operatöre yönlendirildi
+          // MEMNUNİYET METRİĞİ: helpful_ratio = 👍 / (👍+👎). Hiç oy yoksa null.
+          helpful_ratio: helpfulRatio,
+          helpful_rated_count: helpfulRated,
           // MARKA ENTEGRASYONU: en çok şikayet alan markalar listesi.
           top_brands: brandGroups.map((g: any) => ({
             brand: g.brand,
@@ -160,6 +177,7 @@ app.get('/api/admin/dashboard-stats', async (req, res) => {
             category: f.category,
             score: f.score,
             needs_human: f.needs_human,
+            helpful: f.helpful,
             date: fmtTime(f.created_at),
           }))
         });
@@ -184,11 +202,18 @@ app.get('/api/admin/dashboard-stats', async (req, res) => {
       .slice(0, 6)
       .map(([brand, count]) => ({ brand, count }));
 
+    // Memnuniyet metriği (in-memory fallback)
+    const helpfulYes = feedbacksDB.filter(f => f.helpful === true).length;
+    const helpfulRated = feedbacksDB.filter(f => f.helpful === true || f.helpful === false).length;
+    const helpfulRatio = helpfulRated === 0 ? null : ((helpfulYes / helpfulRated) * 100).toFixed(0);
+
     res.json({
       total_feedbacks: total,
       resolved_tickets: 0,
       negative_ratio: negativeRatio,
       human_help_count: humanHelpCount,
+      helpful_ratio: helpfulRatio,
+      helpful_rated_count: helpfulRated,
       top_brands: topBrands,
       recent_feedbacks: feedbacksDB.slice(0, 8)
     });
@@ -265,6 +290,47 @@ KESİNLİKLE YAPMA:
   } catch (error: any) {
     console.error("Chat Hatası:", error);
     res.status(500).json({ success: false, error: error.message || "Sunucu hatası" });
+  }
+});
+
+// =====================================================================
+// YENİ: MEMNUNİYET ANKETİ ENDPOINT'İ
+// ---------------------------------------------------------------------
+// Kullanıcı bot cevabını faydalı bulup bulmadığını işaretler (👍/👎).
+// Frontend bu endpoint'e POST gönderir, helpful alanı DB'de güncellenir.
+// Mevcut akışları bozmaz; opsiyonel bir geri bildirim katmanı.
+// =====================================================================
+app.post('/api/feedback/:id/rate', async (req, res) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    const { helpful } = req.body;
+
+    if (isNaN(id)) return res.status(400).json({ success: false, error: "Geçersiz id" });
+    if (typeof helpful !== "boolean") {
+      return res.status(400).json({ success: false, error: "helpful alanı boolean olmalı" });
+    }
+
+    // 1) DB güncelle (varsa)
+    if (prisma) {
+      try {
+        await prisma.feedback.update({
+          where: { id },
+          data: { helpful }
+        });
+      } catch (dbErr: any) {
+        console.warn("Prisma rate güncelleme başarısız, in-memory'e devam:", dbErr?.message);
+      }
+    }
+
+    // 2) In-memory dizide de güncelle (DB yoksa veya yedek olarak)
+    const idx = feedbacksDB.findIndex(f => f.id === id);
+    if (idx !== -1) feedbacksDB[idx].helpful = helpful;
+
+    console.log(`👍/👎 [Rate] id=${id}, helpful=${helpful}`);
+    res.json({ success: true });
+  } catch (error: any) {
+    console.error("Rate endpoint hatası:", error);
+    res.status(500).json({ success: false, error: error.message });
   }
 });
 

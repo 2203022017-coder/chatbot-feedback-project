@@ -28,6 +28,9 @@ model Feedback {
   // HİBRİT DESTEK: model emin değilse (score < 0.85) bu alan true olur
   // → admin panelde insan operatöre yönlendirilmek üzere işaretlenir.
   needs_human  Boolean  @default(false)
+  // MEMNUNİYET ANKETİ: kullanıcı bot cevabını faydalı buldu mu?
+  // null  → işaretlenmemiş, true → faydalı (👍), false → faydasız (👎)
+  helpful      Boolean?
   created_at   DateTime @default(now())
 
   @@index([created_at])

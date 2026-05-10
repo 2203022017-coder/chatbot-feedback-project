@@ -96,6 +96,8 @@ const AnalysisCircle = ({ percent, label, dark = false }: { percent: number, lab
     resolved_tickets: number;
     negative_ratio: string;
     human_help_count: number;
+    helpful_ratio: string | null;     // Memnuniyet anketi — null = henüz oy yok
+    helpful_rated_count: number;
     top_brands: { brand: string; count: number }[];
     recent_feedbacks: any[];
   }>({
@@ -103,6 +105,8 @@ const AnalysisCircle = ({ percent, label, dark = false }: { percent: number, lab
     resolved_tickets: 0,
     negative_ratio: "0",
     human_help_count: 0,   // Hibrit destek metriği — insan operatöre yönlendirilen şikayet sayısı
+    helpful_ratio: null,    // Memnuniyet — 👍 / (👍+👎) yüzdesi
+    helpful_rated_count: 0,
     top_brands: [],         // Marka entegrasyonu — en çok şikayet alan markalar
     recent_feedbacks: []
   });
@@ -128,7 +132,7 @@ const AnalysisCircle = ({ percent, label, dark = false }: { percent: number, lab
       return;
     }
 
-    const headers = ["Saat", "Marka", "Mesaj", "Kategori", "Duygu", "Skor", "İnsan Yardımı"];
+    const headers = ["Saat", "Marka", "Mesaj", "Kategori", "Duygu", "Skor", "İnsan Yardımı", "Faydalı"];
     const rows = dashboardStats.recent_feedbacks.map((f: any) => [
       f.date,
       f.brand || "Belirtilmemiş",
@@ -136,7 +140,8 @@ const AnalysisCircle = ({ percent, label, dark = false }: { percent: number, lab
       f.category,
       f.sentiment,
       `%${(f.score * 100).toFixed(0)}`,
-      f.needs_human ? "Evet" : "Hayır"
+      f.needs_human ? "Evet" : "Hayır",
+      f.helpful === true ? "👍" : f.helpful === false ? "👎" : "—"
     ]);
 
     const csvContent = [headers, ...rows].map(e => e.join(",")).join("\n");
@@ -242,16 +247,23 @@ const chartData = {
           <p className="text-sm font-bold text-zinc-500 uppercase tracking-widest">Müşteri Deneyimi Analiz Merkezi</p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-6">
           {[
             { t: "Toplam Bildirim", v: dashboardStats.total_feedbacks, c: "text-indigo-600" },
             { t: "Çözülen Şikayet", v: dashboardStats.resolved_tickets, c: "text-emerald-600" },
             { t: "Negatif Duygu Oranı", v: `%${dashboardStats.negative_ratio}`, c: "text-rose-600" },
-            // HİBRİT DESTEK: confidence < 0.7 olan şikayetler insan operatöre yönlendirildi.
+            // HİBRİT DESTEK: confidence < 0.85 olan şikayetler insan operatöre yönlendirildi.
             // Bu metrik, raporun [3] ve [7] kaynaklarındaki "hibrit destek" önerisinin somut göstergesi.
             { t: "İnsan Yardımı", v: dashboardStats.human_help_count ?? 0, c: "text-amber-600" },
+            // MEMNUNİYET ANKETİ: 👍 / (👍 + 👎) yüzdesi. Henüz oy yoksa "—" gösteriyoruz.
+            {
+              t: dashboardStats.helpful_rated_count > 0
+                ? `Memnuniyet (${dashboardStats.helpful_rated_count} oy)`
+                : "Memnuniyet",
+              v: dashboardStats.helpful_ratio !== null ? `%${dashboardStats.helpful_ratio}` : "—",
+              c: "text-fuchsia-600"
+            },
             // Sahte sabit (%95) yerine ölçüm scriptinin ürettiği gerçek doğruluk sayısı.
-            // Eğer ölçüm henüz yapılmadıysa "—" gösterip kullanıcıyı şaşırtmıyoruz.
             {
               t: accuracyData.measured
                 ? `Sistem Doğruluğu (${accuracyData.total_samples} örnek)`
@@ -344,6 +356,7 @@ const chartData = {
                     <th className="p-6">Müşteri Mesajı</th>
                     <th className="p-6">Kategori</th>
                     <th className="p-6 text-right">Duygu & Güven</th>
+                    <th className="p-6 text-center">Faydalı?</th>
                   </tr>
                 </thead>
                 <tbody className="text-sm font-bold text-zinc-700">
@@ -394,6 +407,16 @@ const chartData = {
                         </span>
                         <span className="text-[10px] text-zinc-300 font-medium italic">
                           Güven: %{(f.score * 100).toFixed(0)}
+                        </span>
+                      </td>
+                      <td className="p-6 text-center">
+                        <span className={cn(
+                          "text-lg",
+                          f.helpful === true && "opacity-100",
+                          f.helpful === false && "opacity-100",
+                          f.helpful !== true && f.helpful !== false && "text-zinc-300"
+                        )}>
+                          {f.helpful === true ? "👍" : f.helpful === false ? "👎" : "—"}
                         </span>
                       </td>
                     </tr>
@@ -469,10 +492,12 @@ export default function AIFeedbackHubPortal() {
   // voiceOutput   → bot cevabı geldiğinde otomatik olarak sesli okunsun mu (toggle)
   // voiceSupported→ Tarayıcı Web Speech API destekliyor mu (Firefox eski sürümlerde yok)
   const [isListening, setIsListening] = useState(false);
-  const [voiceOutput, setVoiceOutput] = useState(false);
+  const [voiceOutput, setVoiceOutput] = useState(true);  // Default açık — kullanıcı isterse butonla kapatır
   const [voiceSupported, setVoiceSupported] = useState(false);
   const recognitionRef = useRef<any>(null);
-  const lastSpokenIndexRef = useRef<number>(-1);
+  // Sesli okuma çift okumayı engellemek için son okunan mesajın "imzasını" tutar.
+  // Format: `${index}::${text.length}` — index aynı ama text büyüdüyse okunabilir.
+  const lastSpokenIndexRef = useRef<string>("");
 
   // Tarayıcının ses tanıma desteğini kontrol et + recognition instance oluştur.
   useEffect(() => {
@@ -522,9 +547,9 @@ export default function AIFeedbackHubPortal() {
     }
   };
 
-  // Bot cevabı geldiğinde sesli okuma — voiceOutput açıkken son yeni bot mesajını okur.
-  // lastSpokenIndexRef sayesinde aynı mesajı iki kez okumayız.
+  // Bot cevabı geldiğinde sesli okuma — voiceOutput açıkken son bot mesajını okur.
   useEffect(() => {
+    console.log("🔊 [TTS-effect] Tetiklendi. voiceOutput=", voiceOutput, "messages.length=", messages.length, "lastRole=", messages[messages.length-1]?.role, "lastComplete=", (messages[messages.length-1] as any)?.complete);
     if (!voiceOutput) return;
     if (typeof window === "undefined" || !window.speechSynthesis) return;
     if (messages.length === 0) return;
@@ -533,16 +558,62 @@ export default function AIFeedbackHubPortal() {
     const lastMsg = messages[lastIdx];
     if (lastMsg.role !== "bot") return;
     if (!lastMsg.text || !lastMsg.text.trim()) return;
-    if (lastIdx === lastSpokenIndexRef.current) return; // Daha önce okundu
 
-    lastSpokenIndexRef.current = lastIdx;
-    // Önceki konuşmayı iptal et ki üst üste binmesin
-    window.speechSynthesis.cancel();
-    const utterance = new SpeechSynthesisUtterance(lastMsg.text);
-    utterance.lang = "tr-TR";
-    utterance.rate = 1.0;
-    utterance.pitch = 1.0;
-    window.speechSynthesis.speak(utterance);
+    // SADECE tamamlanmış mesajları oku — streaming sırasında ara token'lar değil.
+    // botMessage'a `complete: true` flag'i, processResponse içinde stream bittikten
+    // sonra konunca eklenir. Bu sayede Chrome'un cancel+speak çakışma bug'ı oluşmaz.
+    if (!(lastMsg as any).complete) return;
+
+    // Aynı mesajı iki kez okumayalım.
+    const signature = `${lastIdx}`;
+    if (lastSpokenIndexRef.current === signature) return;
+
+    console.log("🔊 [TTS] Timer kuruldu, 800ms sonra okunacak. Text uzunluğu:", lastMsg.text.length);
+
+    const timer = setTimeout(() => {
+      lastSpokenIndexRef.current = signature;
+
+      // Türkçe ses seçimi (varsa kullan, yoksa default)
+      const voices = window.speechSynthesis.getVoices();
+      const trVoices = voices.filter(v => v.lang?.startsWith("tr"));
+      const trVoice = voices.find(v => v.lang === "tr-TR") || trVoices[0];
+
+      console.log("🔊 [TTS] Speak edilecek text (uzunluk=" + lastMsg.text.length + "):", JSON.stringify(lastMsg.text));
+
+      const utterance = new SpeechSynthesisUtterance(lastMsg.text);
+      utterance.lang = "tr-TR";
+      utterance.rate = 1.0;
+      utterance.pitch = 1.0;
+      // Yelda bazı macOS sürümlerinde 1-2 sn'de kesiliyor olabiliyor.
+      // Önce trVoice'u dene, eğer ses 2 saniyeden önce biterse (onend çok erken) default'a düş.
+      if (trVoice) utterance.voice = trVoice;
+
+      utterance.onstart = () => console.log("🔊 [TTS] Konuşma başladı.");
+      utterance.onend = () => console.log("🔊 [TTS] Konuşma bitti.");
+      utterance.onerror = (e: any) => console.warn("🔊 [TTS] Hata:", e.error || e);
+
+      // Önceki konuşma bitsin, kuyruğa eklenir (cancel etmeden — Chrome cancel+speak
+      // ardışık çağrıldığında metni ilk harften sonra kesiyor; bu yöntemle bug oluşmaz).
+      // Ek: Chrome > 15sn konuşmaları kesiyor → her 10sn'de bir pause/resume hilesi.
+      const watchdog = setInterval(() => {
+        if (!window.speechSynthesis.speaking) {
+          clearInterval(watchdog);
+          return;
+        }
+        window.speechSynthesis.pause();
+        window.speechSynthesis.resume();
+      }, 10000);
+      utterance.onend = () => {
+        clearInterval(watchdog);
+        console.log("🔊 [TTS] Konuşma bitti.");
+      };
+
+      window.speechSynthesis.speak(utterance);
+      console.log("🔊 [TTS] speak() çağrıldı. Kuyruğa eklenmiş mi:", window.speechSynthesis.speaking);
+    }, 800);
+
+    // Yeni token gelirse önceki timer iptal edilir, ses 800ms sonra tek seferde başlar.
+    return () => clearTimeout(timer);
   }, [messages, voiceOutput]);
 
   // Voice output kapatılırsa şu an okunan cümleyi durdur
@@ -573,10 +644,11 @@ useEffect(() => {
 
   // 1. Kural: Süreç bilgisi isteniyorsa
   if (actionKey === "process_info" || userText.toLowerCase().includes("süreç")) {
-    setMessages(prev => [...prev, { 
-      role: "bot", 
-      text: "Sistemimiz şu şekilde çalışır: Yazdığınız metin Node.js üzerinden Groq API'ye ve Llama 3.1 modeline iletilir. Doğal Dil İşleme (NLP) kullanılarak metnin duygu durumu ve şikayet kategorisi saniyeler içinde analiz edilir. Ardından sonuçlar anlık olarak yönetici paneline yansıtılır. 🚀", 
-      type: "text" 
+    setMessages(prev => [...prev, {
+      role: "bot",
+      text: "Sistemimiz şu şekilde çalışır: Yazdığınız metin Node.js üzerinden Groq API'ye ve Llama 3.1 modeline iletilir. Doğal Dil İşleme (NLP) kullanılarak metnin duygu durumu ve şikayet kategorisi saniyeler içinde analiz edilir. Ardından sonuçlar anlık olarak yönetici paneline yansıtılır. 🚀",
+      type: "text",
+      complete: true,
     }]);
     setIsTyping(false);
     return;
@@ -584,10 +656,11 @@ useEffect(() => {
 
   // 2. Kural: Şikayet yazma butonu tıklandıysa veya kullanıcı bunu yazdıysa API'ye gitme, kullanıcıyı bekle
   if (userText.toLowerCase().includes("yeni bir şikayet") || userText.toLowerCase().includes("şikayet yaz")) {
-    setMessages(prev => [...prev, { 
-      role: "bot", 
-      text: "Size yardımcı olmak için buradayım. Lütfen yaşadığınız deneyimi veya sorunu detaylıca aşağıya yazın.", 
-      type: "text" 
+    setMessages(prev => [...prev, {
+      role: "bot",
+      text: "Size yardımcı olmak için buradayım. Lütfen yaşadığınız deneyimi veya sorunu detaylıca aşağıya yazın.",
+      type: "text",
+      complete: true,
     }]);
     setIsTyping(false);
     return;
@@ -732,10 +805,13 @@ useEffect(() => {
     const finalText = chatReply || fallbackText;
 
     // Final bot mesajını oluştur (badge ve istatistikler dahil).
+    // complete: true → useEffect bu mesajı sesli okumak için yeşil ışık olarak görür.
+    // Streaming sırasında token'ların eklendiği geçici mesajlarda complete=false kalır.
     const botMessage: any = {
       role: "bot",
       text: finalText,
       type: aiData ? "analysis_result" : "text",
+      complete: true,
     };
 
     if (aiData) {
@@ -763,6 +839,12 @@ useEffect(() => {
       const detectedBrand: string | undefined = analyzeResult?.data?.brand;
       if (detectedBrand && detectedBrand !== "Belirtilmemiş") {
         botMessage.brand = detectedBrand;
+      }
+
+      // MEMNUNİYET ANKETİ: backend'den dönen feedback id'sini bot mesajına ekleyelim.
+      // Frontend daha sonra "/api/feedback/:id/rate" endpoint'ine 👍/👎 yollar.
+      if (analyzeResult?.data?.id) {
+        botMessage.feedbackId = analyzeResult.data.id;
       }
     }
 
@@ -799,6 +881,30 @@ useEffect(() => {
     setInput(""); // Mesaj kutusunu temizler
   }
 };
+
+  // MEMNUNİYET ANKETİ: kullanıcı 👍/👎 tıklayınca DB'de helpful=true/false set ederiz.
+  // Mesajı in-place update ederek butonları "Teşekkürler" haline getiriyoruz.
+  const rateFeedback = async (messageIdx: number, feedbackId: number, helpful: boolean) => {
+    // Önce optimistic update — kullanıcı butonun anında tepki verdiğini görsün.
+    setMessages(prev => {
+      const next = [...prev];
+      if (next[messageIdx]) {
+        next[messageIdx] = { ...next[messageIdx], rated: helpful ? "yes" : "no" };
+      }
+      return next;
+    });
+
+    // Sonra arka planda backend'e bildir.
+    try {
+      await fetch(`${API_URL}/api/feedback/${feedbackId}/rate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ helpful }),
+      });
+    } catch (err) {
+      console.warn("Rate gönderimi başarısız:", err);
+    }
+  };
 
   const handleSend = (e?: React.FormEvent) => {
     // İŞTE HAYAT KURTARAN O SATIR: Sayfanın kendi kendine yenilenip kilitlenmesini engeller!
@@ -879,11 +985,14 @@ useEffect(() => {
                     onClick={() => setVoiceOutput(v => !v)}
                     title={voiceOutput ? "Sesli okumayı kapat" : "Sesli okumayı aç"}
                     className={cn(
-                      "transition-colors",
-                      voiceOutput ? "text-cyan-400" : "text-white/60 hover:text-white"
+                      "flex items-center gap-1.5 px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all",
+                      voiceOutput
+                        ? "bg-cyan-400 text-indigo-950"          // AKTİF: net cyan zemin + koyu yazı
+                        : "bg-white/10 text-white/70 hover:bg-white/20"
                     )}
                   >
                     {voiceOutput ? <IconSpeakerOn /> : <IconSpeakerOff />}
+                    <span>{voiceOutput ? "Açık" : "Sesli"}</span>
                   </button>
                 )}
                 <button onClick={() => setIsBotOpen(false)}><IconX /></button>
@@ -929,6 +1038,29 @@ useEffect(() => {
                             <div className="w-full h-1.5 bg-zinc-100 rounded-full overflow-hidden"><div className="h-full bg-indigo-600" style={{ width: `${s.v}%` }} /></div>
                           </div>
                         ))}
+                      </div>
+                    )}
+
+                    {/* MEMNUNİYET ANKETİ — 👍/👎 — kullanıcı bot cevabını faydalı buldu mu? */}
+                    {m.feedbackId && !m.rated && (
+                      <div className="mt-3 pt-3 border-t border-zinc-100 flex items-center justify-center gap-2">
+                        <span className="text-[9px] font-black uppercase tracking-widest text-zinc-400 mr-1">Faydalı mıydı?</span>
+                        <button
+                          onClick={() => rateFeedback(i, m.feedbackId as number, true)}
+                          className="px-2.5 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-600 text-sm transition-colors"
+                          title="Faydalıydı"
+                        >👍</button>
+                        <button
+                          onClick={() => rateFeedback(i, m.feedbackId as number, false)}
+                          className="px-2.5 py-1 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-600 text-sm transition-colors"
+                          title="Faydalı değildi"
+                        >👎</button>
+                      </div>
+                    )}
+
+                    {m.rated && (
+                      <div className="mt-3 pt-3 border-t border-zinc-100 text-center text-[10px] font-black uppercase tracking-widest text-zinc-500">
+                        {m.rated === "yes" ? "👍 Teşekkürler, geri bildiriminiz kayda geçti." : "👎 Geri bildiriminiz alındı, daha iyisini yapmak için kullanacağız."}
                       </div>
                     )}
                     {m.type === "job_cards" && m.jobs && (
