@@ -45,6 +45,31 @@ const IconX = () => (
 const IconShield = () => (
   <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
 );
+// VOICE — sesli giriş için mikrofon ikonu
+const IconMic = ({ className = "" }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className={className}>
+    <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+    <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+    <line x1="12" y1="19" x2="12" y2="23"/>
+    <line x1="8" y1="23" x2="16" y2="23"/>
+  </svg>
+);
+// VOICE — bot cevabının sesli okunması için hoparlör ikonu (açık)
+const IconSpeakerOn = ({ className = "" }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className={className}>
+    <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
+    <path d="M19.07 4.93a10 10 0 0 1 0 14.14"/>
+    <path d="M15.54 8.46a5 5 0 0 1 0 7.07"/>
+  </svg>
+);
+// VOICE — hoparlör kapalı (sessiz) durumu
+const IconSpeakerOff = ({ className = "" }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className={className}>
+    <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
+    <line x1="23" y1="9" x2="17" y2="15"/>
+    <line x1="17" y1="9" x2="23" y2="15"/>
+  </svg>
+);
 
 // --- DAİRESEL ANALİZ GRAFİĞİ BİLEŞENİ ---
 const AnalysisCircle = ({ percent, label, dark = false }: { percent: number, label: string, dark?: boolean }) => {
@@ -436,8 +461,96 @@ export default function AIFeedbackHubPortal() {
   const [input, setInput] = useState("");
   const [isTyping, setIsTyping] = useState(false);
   const [simStep, setSimStep] = useState("");
-  const [interviewStep, setInterviewStep] = useState(false); 
+  const [interviewStep, setInterviewStep] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
+
+  // VOICE STATE'LERİ
+  // isListening   → mikrofon aktif mi (UI'da kırmızı yanıp sönen mikrofon)
+  // voiceOutput   → bot cevabı geldiğinde otomatik olarak sesli okunsun mu (toggle)
+  // voiceSupported→ Tarayıcı Web Speech API destekliyor mu (Firefox eski sürümlerde yok)
+  const [isListening, setIsListening] = useState(false);
+  const [voiceOutput, setVoiceOutput] = useState(false);
+  const [voiceSupported, setVoiceSupported] = useState(false);
+  const recognitionRef = useRef<any>(null);
+  const lastSpokenIndexRef = useRef<number>(-1);
+
+  // Tarayıcının ses tanıma desteğini kontrol et + recognition instance oluştur.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const SR: any = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SR) {
+      setVoiceSupported(false);
+      return;
+    }
+    setVoiceSupported(true);
+    const recognition = new SR();
+    recognition.lang = "tr-TR";          // Türkçe ses tanıma
+    recognition.interimResults = false;   // Sadece final sonucu istiyoruz, ara sonuçlar yok
+    recognition.continuous = false;       // Tek bir cümle, otomatik dur
+    recognition.maxAlternatives = 1;
+    recognition.onresult = (event: any) => {
+      const transcript = event.results[0]?.[0]?.transcript || "";
+      if (transcript.trim()) {
+        setInput(transcript);
+      }
+    };
+    recognition.onerror = (event: any) => {
+      console.warn("Ses tanıma hatası:", event.error);
+      setIsListening(false);
+    };
+    recognition.onend = () => {
+      setIsListening(false);
+    };
+    recognitionRef.current = recognition;
+  }, []);
+
+  // Mikrofon butonuna basıldığında: dinlemeyi başlat veya durdur (toggle).
+  const toggleListening = () => {
+    if (!recognitionRef.current) return;
+    if (isListening) {
+      recognitionRef.current.stop();
+      setIsListening(false);
+    } else {
+      try {
+        setInput(""); // Eski metin varsa temizle ki yeni transkript karışmasın
+        recognitionRef.current.start();
+        setIsListening(true);
+      } catch (e) {
+        console.warn("Ses tanıma başlatılamadı:", e);
+        setIsListening(false);
+      }
+    }
+  };
+
+  // Bot cevabı geldiğinde sesli okuma — voiceOutput açıkken son yeni bot mesajını okur.
+  // lastSpokenIndexRef sayesinde aynı mesajı iki kez okumayız.
+  useEffect(() => {
+    if (!voiceOutput) return;
+    if (typeof window === "undefined" || !window.speechSynthesis) return;
+    if (messages.length === 0) return;
+
+    const lastIdx = messages.length - 1;
+    const lastMsg = messages[lastIdx];
+    if (lastMsg.role !== "bot") return;
+    if (!lastMsg.text || !lastMsg.text.trim()) return;
+    if (lastIdx === lastSpokenIndexRef.current) return; // Daha önce okundu
+
+    lastSpokenIndexRef.current = lastIdx;
+    // Önceki konuşmayı iptal et ki üst üste binmesin
+    window.speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(lastMsg.text);
+    utterance.lang = "tr-TR";
+    utterance.rate = 1.0;
+    utterance.pitch = 1.0;
+    window.speechSynthesis.speak(utterance);
+  }, [messages, voiceOutput]);
+
+  // Voice output kapatılırsa şu an okunan cümleyi durdur
+  useEffect(() => {
+    if (!voiceOutput && typeof window !== "undefined" && window.speechSynthesis) {
+      window.speechSynthesis.cancel();
+    }
+  }, [voiceOutput]);
 
   const quickActions = [
     { label: "Yeni Bir Şikayet Yaz", action: "new_complaint" },
@@ -759,7 +872,22 @@ useEffect(() => {
                 <div className="w-2 h-2 bg-cyan-400 rounded-full " />
                 <span className="text-[11px] tracking-widest uppercase text-white">AI Feedback Assistant</span>
               </div>
-              <button onClick={() => setIsBotOpen(false)}><IconX /></button>
+              <div className="flex items-center gap-3">
+                {/* VOICE OUTPUT TOGGLE — açıksa bot cevapları sesli okunur */}
+                {voiceSupported && (
+                  <button
+                    onClick={() => setVoiceOutput(v => !v)}
+                    title={voiceOutput ? "Sesli okumayı kapat" : "Sesli okumayı aç"}
+                    className={cn(
+                      "transition-colors",
+                      voiceOutput ? "text-cyan-400" : "text-white/60 hover:text-white"
+                    )}
+                  >
+                    {voiceOutput ? <IconSpeakerOn /> : <IconSpeakerOff />}
+                  </button>
+                )}
+                <button onClick={() => setIsBotOpen(false)}><IconX /></button>
+              </div>
             </div>
             
             <div className="flex-1 p-6 overflow-y-auto bg-zinc-50/50 space-y-4 font-medium">
@@ -832,8 +960,30 @@ useEffect(() => {
             )}
               <div ref={chatEndRef} />
             </div>
-            <div className="p-4 bg-white border-t flex gap-2">
-              <input type="text" value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => e.key === "Enter" && handleSend()} placeholder="Şikayet veya önerinizi yazın..." className="flex-1 bg-zinc-100 rounded-xl px-4 py-2 text-xs outline-none" />
+            <div className="p-4 bg-white border-t flex gap-2 items-center">
+              <input
+                type="text"
+                value={input}
+                onChange={e => setInput(e.target.value)}
+                onKeyDown={e => e.key === "Enter" && handleSend()}
+                placeholder={isListening ? "🎤 Dinleniyor... konuşun" : "Şikayet veya önerinizi yazın..."}
+                className="flex-1 bg-zinc-100 rounded-xl px-4 py-2 text-xs outline-none"
+              />
+              {/* VOICE INPUT — mikrofon butonu (sadece tarayıcı destekliyorsa) */}
+              {voiceSupported && (
+                <button
+                  onClick={toggleListening}
+                  title={isListening ? "Dinlemeyi durdur" : "Sesle yaz (Türkçe)"}
+                  className={cn(
+                    "p-2 rounded-xl transition-all",
+                    isListening
+                      ? "bg-rose-500 text-white animate-pulse"
+                      : "bg-zinc-100 text-zinc-600 hover:bg-zinc-200"
+                  )}
+                >
+                  <IconMic className="w-5 h-5" />
+                </button>
+              )}
               <button onClick={handleSend} className="p-2 bg-indigo-600 rounded-xl text-white"><IconZap className="w-5 h-5" /></button>
             </div>
           </div>
