@@ -294,6 +294,206 @@ KESİNLİKLE YAPMA:
 });
 
 // =====================================================================
+// YENİ: AI AGENT ENDPOINT'İ (Function Calling / Tool Use)
+// ---------------------------------------------------------------------
+// Bot artık gerçek bir AI Agent: kullanıcı "kaç şikayet var?", "en çok
+// hangi marka şikayet alıyor?" gibi sorduğunda Llama 3.3'ün tool calling
+// yeteneği ile DB'ye bakar ve gerçek sayılarla cevap verir. Uydurmaz.
+//
+// Akış:
+//   1. Kullanıcı mesajı + tool tanımları Llama'ya gönderilir.
+//   2. Llama bir tool çağırması gerekiyorsa tool_calls döner.
+//   3. Backend tool'u execute eder (Prisma sorgusu / in-memory hesap).
+//   4. Tool sonucu Llama'ya 2. round'da gönderilir.
+//   5. Llama sonuçları cümle haline getirip kullanıcıya cevap verir.
+// =====================================================================
+
+// Tool tanımları — OpenAI function calling formatı (Groq SDK destekliyor)
+const AGENT_TOOLS: any[] = [
+  {
+    type: "function",
+    function: {
+      name: "get_total_feedbacks",
+      description: "Sistemdeki toplam şikayet/geri bildirim sayısını döndürür.",
+      parameters: { type: "object", properties: {}, required: [] }
+    }
+  },
+  {
+    type: "function",
+    function: {
+      name: "get_negative_count",
+      description: "Negatif duygu durumuna sahip şikayet sayısını döndürür.",
+      parameters: { type: "object", properties: {}, required: [] }
+    }
+  },
+  {
+    type: "function",
+    function: {
+      name: "get_top_brands",
+      description: "En çok şikayet alan ilk 5 markayı (marka adı + sayı) döndürür.",
+      parameters: { type: "object", properties: {}, required: [] }
+    }
+  },
+  {
+    type: "function",
+    function: {
+      name: "get_feedback_by_id",
+      description: "Belirli bir şikayet ID'sine ait detayları (kategori, duygu, marka, durum) döndürür.",
+      parameters: {
+        type: "object",
+        properties: {
+          id: { type: "number", description: "Şikayetin sayısal kimlik numarası" }
+        },
+        required: ["id"]
+      }
+    }
+  },
+  {
+    type: "function",
+    function: {
+      name: "get_human_help_count",
+      description: "İnsan operatöre yönlendirilmiş (hibrit destek tetiklenmiş) şikayet sayısını döndürür.",
+      parameters: { type: "object", properties: {}, required: [] }
+    }
+  }
+];
+
+/** Tool'ları gerçek veritabanı (veya in-memory) sorgularına dönüştüren executor. */
+async function executeAgentTool(name: string, args: any): Promise<any> {
+  switch (name) {
+    case "get_total_feedbacks": {
+      if (prisma) {
+        try { return { total: await prisma.feedback.count() }; }
+        catch { /* fallback */ }
+      }
+      return { total: feedbacksDB.length };
+    }
+    case "get_negative_count": {
+      if (prisma) {
+        try { return { negative: await prisma.feedback.count({ where: { sentiment: "Negative" } }) }; }
+        catch {}
+      }
+      return { negative: feedbacksDB.filter(f => f.sentiment === "Negative").length };
+    }
+    case "get_top_brands": {
+      if (prisma) {
+        try {
+          const groups = await prisma.feedback.groupBy({
+            by: ["brand"],
+            _count: { brand: true },
+            orderBy: { _count: { brand: "desc" } },
+            take: 5,
+          });
+          return { brands: groups.map((g: any) => ({ brand: g.brand, count: g._count.brand })) };
+        } catch {}
+      }
+      const counts: Record<string, number> = {};
+      for (const f of feedbacksDB) counts[f.brand || "Belirtilmemiş"] = (counts[f.brand || "Belirtilmemiş"] || 0) + 1;
+      const brands = Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, 5).map(([brand, count]) => ({ brand, count }));
+      return { brands };
+    }
+    case "get_feedback_by_id": {
+      const id = Number(args?.id);
+      if (!id) return { error: "Geçersiz id" };
+      if (prisma) {
+        try {
+          const f = await prisma.feedback.findUnique({ where: { id } });
+          if (f) return f;
+        } catch {}
+      }
+      const f = feedbacksDB.find(f => f.id === id);
+      return f || { error: "Şikayet bulunamadı" };
+    }
+    case "get_human_help_count": {
+      if (prisma) {
+        try { return { count: await prisma.feedback.count({ where: { needs_human: true } }) }; }
+        catch {}
+      }
+      return { count: feedbacksDB.filter(f => f.needs_human).length };
+    }
+    default:
+      return { error: `Bilinmeyen tool: ${name}` };
+  }
+}
+
+app.post('/api/agent', async (req, res) => {
+  try {
+    const { message, history = [] } = req.body;
+    if (!message || typeof message !== "string" || !message.trim()) {
+      return res.status(400).json({ success: false, error: "Mesaj boş olamaz." });
+    }
+
+    const systemPrompt = {
+      role: "system" as const,
+      content: `Sen "AI Feedback Hub" platformunun veri-bilgili asistanısın.
+Kullanıcı sayısal/istatistiksel sorular sorduğunda araç (tool) çağırıp gerçek sayılarla cevap verirsin.
+Asla uydurma yapma. Bilgi yoksa "şu an verim yok" de.
+Cevapların kısa, samimi ve Türkçe olsun. Markdown kullanma.`
+    };
+
+    const recentHistory = (Array.isArray(history) ? history.slice(-6) : []).map((m: any) => ({
+      role: m.role === "bot" ? "assistant" as const : "user" as const,
+      content: String(m.text || m.content || "")
+    })).filter(m => m.content.trim());
+
+    // 1. Round: Llama'ya tool tanımları ile mesajı gönder.
+    const round1 = await groq.chat.completions.create({
+      model: "llama-3.3-70b-versatile",
+      messages: [systemPrompt, ...recentHistory, { role: "user", content: message }],
+      tools: AGENT_TOOLS,
+      tool_choice: "auto",
+      temperature: 0.3,
+    });
+
+    const choice = round1.choices[0];
+    const toolCalls = choice?.message?.tool_calls;
+
+    // Llama tool çağırmadıysa direkt cevabını döndür.
+    if (!toolCalls || toolCalls.length === 0) {
+      return res.json({
+        success: true,
+        reply: choice?.message?.content?.trim() || "Yanıt üretemedim, tekrar dener misiniz?",
+        usedTools: []
+      });
+    }
+
+    // 2. Round: tool'ları execute et ve sonuçları Llama'ya gönder.
+    const usedTools: string[] = [];
+    const toolMessages: any[] = [];
+    for (const call of toolCalls) {
+      const fnName = call.function.name;
+      const args = call.function.arguments ? JSON.parse(call.function.arguments) : {};
+      const result = await executeAgentTool(fnName, args);
+      usedTools.push(fnName);
+      console.log(`🛠️  [Agent] Tool: ${fnName} (${JSON.stringify(args)}) → ${JSON.stringify(result).slice(0, 100)}`);
+      toolMessages.push({
+        role: "tool" as const,
+        tool_call_id: call.id,
+        content: JSON.stringify(result)
+      });
+    }
+
+    const round2 = await groq.chat.completions.create({
+      model: "llama-3.3-70b-versatile",
+      messages: [
+        systemPrompt,
+        ...recentHistory,
+        { role: "user", content: message },
+        choice.message,         // Llama'nın tool çağıran mesajı
+        ...toolMessages,        // Tool sonuçları
+      ],
+      temperature: 0.5,
+    });
+
+    const finalReply = round2.choices[0]?.message?.content?.trim() || "Cevap oluşturulamadı.";
+    res.json({ success: true, reply: finalReply, usedTools });
+  } catch (error: any) {
+    console.error("Agent Hatası:", error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// =====================================================================
 // YENİ: MEMNUNİYET ANKETİ ENDPOINT'İ
 // ---------------------------------------------------------------------
 // Kullanıcı bot cevabını faydalı bulup bulmadığını işaretler (👍/👎).
