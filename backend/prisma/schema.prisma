@@ -1,14 +1,14 @@
 // Prisma schema — backend'e özel.
-// SQLite kullanıyoruz: zero-config, dosya tabanlı (backend/prisma/dev.db).
+// PostgreSQL kullanıyoruz (Render Free Postgres + lokal Postgres).
+// SQLite Render Free Tier'da yazma izni alamadığı için PostgreSQL'e geçildi.
 // Mevcut tüm modeller (User, ChatSession, Message, vb.) raporda yer aldığı için korundu.
-// /api/feedback/analyze ve admin paneli için pratik olan basit "Feedback" modeli eklendi.
 
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 

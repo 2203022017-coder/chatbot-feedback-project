@@ -578,9 +578,18 @@ export default function AIFeedbackHubPortal() {
       const trVoices = voices.filter(v => v.lang?.startsWith("tr"));
       const trVoice = voices.find(v => v.lang === "tr-TR") || trVoices[0];
 
-      console.log("🔊 [TTS] Speak edilecek text (uzunluk=" + lastMsg.text.length + "):", JSON.stringify(lastMsg.text));
+      // Llama bazen sistem prompt'una rağmen markdown (** veya `) ekliyor.
+      // Yelda bu sembolleri okurken takılıyor; metni temizleyip yolluyoruz.
+      const cleanText = lastMsg.text
+        .replace(/\*+/g, "")          // ** veya * sembollerini sil
+        .replace(/`+/g, "")           // backtick'leri sil
+        .replace(/#+\s/g, "")         // markdown header
+        .replace(/\[(.*?)\]\(.*?\)/g, "$1") // [link](url) → link text
+        .trim();
 
-      const utterance = new SpeechSynthesisUtterance(lastMsg.text);
+      console.log("🔊 [TTS] Speak edilecek text (uzunluk=" + cleanText.length + "):", JSON.stringify(cleanText));
+
+      const utterance = new SpeechSynthesisUtterance(cleanText);
       utterance.lang = "tr-TR";
       utterance.rate = 1.0;
       utterance.pitch = 1.0;
@@ -729,11 +738,14 @@ useEffect(() => {
       text: m.text
     }));
 
-    // Mesaj gerçek bir geri bildirim mi, yoksa sadece selamlaşma/kısa sohbet mi?
-    // Eşik: en az 3 kelime VE 15+ karakter. Kısa mesajlarda rozet/skor göstermiyoruz.
+    // Mesaj gerçek bir geri bildirim mi?
+    // Eşik kuralları yanlış negatif (örn. "Turkcell'e ulaşamıyorum" kaçırmak) yarattığı için
+    // her mesajı analiz ediyoruz. Llama 70B "merhaba" gibi şeylere zaten "Neutral" +
+    // "İletişim" der, küçük gürültü oluşur ama kısa şikayetler artık kaçmaz.
     const trimmedText = userText.trim();
     const wordCount = trimmedText.split(/\s+/).length;
-    const looksLikeFeedback = wordCount >= 3 && trimmedText.length >= 15;
+    const looksLikeFeedback = trimmedText.length > 0;
+    console.log("📝 [Analyze trigger]", { text: userText, wordCount, length: trimmedText.length, willAnalyze: looksLikeFeedback });
 
     // /api/feedback/analyze isteğini paralelde başlat — admin paneli için DB'ye kaydeder
     // ve sentiment+kategori bilgisini badge için kullanırız. Kısa mesajlarda atlıyoruz.
