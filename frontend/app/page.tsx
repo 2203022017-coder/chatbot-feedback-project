@@ -668,17 +668,26 @@ useEffect(() => {
 
   // 3. AI AGENT (Function Calling): Kullanıcı sayısal/istatistiksel bir sorgu yapıyorsa
   // bot DB'ye bakıp gerçek sayılarla cevap versin. /api/agent endpoint'i Llama 3.3'ün
-  // tool calling yeteneğiyle çalışır — toplam şikayet, en çok şikayet alan marka,
-  // negatif sayısı, belirli ID için durum sorgusu vb. yanıtlar.
+  // tool calling yeteneğiyle çalışır.
+  //
+  // ÖNEMLİ: Pattern'lar dar tutuluyor; aksi takdirde "kaç gündür ürün bekliyorum" gibi
+  // şikayet metinleri yanlışlıkla agent intent algılanıp /api/feedback/analyze'i
+  // atlatıyor → veri kaybı oluyor. Her pattern, gerçek bir istatistik/veri sorgusu
+  // olduğundan emin olacak şekilde geniş ifadeyle eşleşmeli.
   const lowerMsg = userText.toLowerCase();
-  const agentKeywords = [
-    "kaç", "kac", "sayı", "sayi", "toplam", "ne kadar",
-    "hangi marka", "en çok", "en cok", "en fazla",
-    "istatistik", "özet", "ozet",
-    "durum", "ne durumda", "ne aşamada",
-    "negatif sayı", "negatif kaç", "kaç negatif"
+  const agentPatterns: RegExp[] = [
+    /kaç\s+(şikayet|tane|geri\s*bildirim|olumsuz|negatif|pozitif)/,
+    /(şikayet|geri\s*bildirim)\s+(sayısı|sayi|adedi|kaç)/,
+    /toplam\s+(kaç|şikayet|geri\s*bildirim|bildirim)/,
+    /(en\s+(çok|cok|fazla))\s+(şikayet|marka|hangi)/,
+    /hangi\s+(marka|firma)\s+(en\s+çok|en\s+fazla|kaç)/,
+    /(istatistik|özet|ozet|raporla|dashboard|panel\s+verisi)/,
+    /(insan\s+yardımı|insan\s+destek)\s+(kaç|sayı)/,
+    /(şikayet|bildirim)\s+id\s*\d/,
+    /id\s*[:#]?\s*\d+\s+(durum|şikayet|hangi)/,
+    /memnuniyet\s+(oranı|yüzdesi|yuzdesi)/,
   ];
-  const isAgentQuery = agentKeywords.some(kw => lowerMsg.includes(kw));
+  const isAgentQuery = agentPatterns.some(re => re.test(lowerMsg));
 
   if (isAgentQuery) {
     try {
