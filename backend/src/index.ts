@@ -28,6 +28,26 @@ const groq = new Groq({ apiKey: GROQ_API_KEY });
 // "kemer + askılı" güvenlik için (DB yokken sistem yine ayakta kalsın diye).
 let feedbacksDB: any[] = [];
 
+// =====================================================================
+// RAG (Retrieval-Augmented Generation) — Bilgi Tabanı
+// ---------------------------------------------------------------------
+// Bot uydurma yapmasın, gerçek şirket politikalarına göre cevap versin diye
+// backend/data/knowledge_base.md dosyasını startup'ta okuyup sistem prompt'una
+// inject ediyoruz. Llama 3.x'in 128K context window'u bunu rahatlıkla taşır.
+// =====================================================================
+let KB_CONTENT = "";
+try {
+  const kbPath = join(process.cwd(), "data", "knowledge_base.md");
+  if (existsSync(kbPath)) {
+    KB_CONTENT = readFileSync(kbPath, "utf-8");
+    console.log(`📚 Bilgi tabanı yüklendi (${KB_CONTENT.length} karakter)`);
+  } else {
+    console.warn(`⚠️  Bilgi tabanı bulunamadı: ${kbPath}`);
+  }
+} catch (err: any) {
+  console.warn("⚠️  KB okuma hatası:", err?.message);
+}
+
 /** Saat:dakika formatında zaman damgası (frontend tablosunda gösterim için). */
 const fmtTime = (d: Date) =>
   d.toLocaleTimeString("tr-TR", { hour: '2-digit', minute: '2-digit' });
@@ -262,7 +282,17 @@ GÖREVLER:
 KESİNLİKLE YAPMA:
 - "Ben bir yapay zekayım" gibi cümlelerle kendini deşifre etme.
 - Cevap içinde markdown (**, ##, vb.) kullanma.
-- 3 cümleden uzun yanıt üretme.`
+- 3 cümleden uzun yanıt üretme.
+
+${KB_CONTENT ? `
+=== ŞİRKET BİLGİ TABANI (RAG) ===
+Aşağıdaki bilgileri kullanarak kullanıcının sorduğu konularda SADECE bu kaynağa göre cevap ver.
+Doküman dışı konularda "Bu konuda kesin bilgim yok, ilgili ekibe yönlendireyim" de.
+Sayısal değerleri (gün, saat, yüzde) BİREBİR aktar.
+
+${KB_CONTENT}
+=== BİLGİ TABANI SONU ===
+` : ''}`
     };
 
     // Geçmiş mesajları Groq formatına dönüştür (max son 10 mesaj — bağlam ama token tasarrufu)
@@ -586,7 +616,17 @@ GÖREVLER:
 KESİNLİKLE YAPMA:
 - "Ben bir yapay zekayım" gibi cümlelerle kendini deşifre etme.
 - Cevap içinde markdown (**, ##, vb.) kullanma.
-- 3 cümleden uzun yanıt üretme.`
+- 3 cümleden uzun yanıt üretme.
+
+${KB_CONTENT ? `
+=== ŞİRKET BİLGİ TABANI (RAG) ===
+Aşağıdaki bilgileri kullanarak kullanıcının sorduğu konularda SADECE bu kaynağa göre cevap ver.
+Doküman dışı konularda "Bu konuda kesin bilgim yok, ilgili ekibe yönlendireyim" de.
+Sayısal değerleri (gün, saat, yüzde) BİREBİR aktar.
+
+${KB_CONTENT}
+=== BİLGİ TABANI SONU ===
+` : ''}`
     };
 
     const recentHistory = (Array.isArray(history) ? history.slice(-10) : []).map((m: any) => ({
