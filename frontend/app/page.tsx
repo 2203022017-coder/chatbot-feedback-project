@@ -163,14 +163,13 @@ const AnalysisCircle = ({ percent, label, dark = false }: { percent: number, lab
         .then(data => {
   if (data && typeof data.total_feedbacks !== 'undefined') {
     setDashboardStats(prevStats => {
-      // SADECE sayı bir öncekinden büyükse uyarı ver
+      // Yeni negatif şikayet geldiyse sessiz log atıyoruz (eski alert() pop-up'ı
+      // demo sırasında jüriyi rahatsız ediyordu — kaldırıldı).
+      // Admin panel zaten her 3 sn'de yenilenip yeni satırı kırmızı vurgulu gösteriyor.
       if (data.total_feedbacks > prevStats.total_feedbacks) {
-        const latest = data.recent_feedbacks[0];
-        if (latest.sentiment === 'Negative') {
-          // Sayfanın kitlenmemesi için uyarıyı saliseler sonra çıkarıyoruz
-          setTimeout(() => {
-            alert(`🚨 DİKKAT: ${latest.category} biriminde negatif bir geri bildirim saptandı!`);
-          }, 100);
+        const latest = data.recent_feedbacks?.[0];
+        if (latest && latest.sentiment === 'Negative') {
+          console.log(`🚨 Yeni negatif geri bildirim: ${latest.category} / ${latest.brand || "Belirtilmemiş"}`);
         }
       }
       return data; // Güncel veriyi sisteme kaydet
