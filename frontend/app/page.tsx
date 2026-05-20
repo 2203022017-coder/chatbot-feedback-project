@@ -4,19 +4,20 @@ import React, { useState, useEffect, useRef } from "react";
 import FileUploader from "@/components/ui/file-uploader"; 
 import { cn } from "@/lib/utils";
 import { motion } from 'framer-motion';
-import { Line } from 'react-chartjs-2';
-import { 
-Chart as ChartJS, 
-CategoryScale, 
-LinearScale, 
-PointElement, 
-LineElement, 
-Title, 
-Tooltip, 
-Legend 
+import { Line, Doughnut } from 'react-chartjs-2';
+import {
+Chart as ChartJS,
+CategoryScale,
+LinearScale,
+PointElement,
+LineElement,
+ArcElement,
+Title,
+Tooltip,
+Legend
 } from 'chart.js';
 
-ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend);
+ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, ArcElement, Title, Tooltip, Legend);
 
 // --- BACKEND API ADRESİ ---
 // Lokalde çalışırken otomatik olarak localhost:3001'e, deploy edilmiş sürümde Render'a yönlendirir.
@@ -71,6 +72,47 @@ const IconSpeakerOff = ({ className = "" }) => (
   </svg>
 );
 
+// QUICK ACTION İKONLARI — chat karşılama ekranında kullanılır
+const IconPen = ({ className = "" }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+    <path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 1 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/>
+  </svg>
+);
+const IconBarChart = ({ className = "" }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+    <line x1="12" y1="20" x2="12" y2="10"/><line x1="18" y1="20" x2="18" y2="4"/><line x1="6" y1="20" x2="6" y2="16"/>
+  </svg>
+);
+const IconRefresh = ({ className = "" }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+    <polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+  </svg>
+);
+const IconInfo = ({ className = "" }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+    <circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/>
+  </svg>
+);
+const IconWorkflow = ({ className = "" }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+    <rect x="3" y="3" width="6" height="6" rx="1"/><rect x="15" y="15" width="6" height="6" rx="1"/><path d="M9 6h6a3 3 0 0 1 3 3v6"/>
+  </svg>
+);
+const IconSparkle = ({ className = "" }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="currentColor" className={className}>
+    <path d="M12 2l2.4 7.4L22 12l-7.6 2.6L12 22l-2.4-7.4L2 12l7.6-2.6z"/>
+  </svg>
+);
+
+// BOT AVATAR — mesaj balonlarının yanında küçük yuvarlak avatar
+const BotAvatar = ({ className = "" }: { className?: string }) => (
+  <div className={cn("flex-shrink-0 w-7 h-7 rounded-full bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center text-white shadow-sm", className)}>
+    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+      <path d="M12 2a2 2 0 0 1 2 2v1.5a6.5 6.5 0 0 1 5 6.32V18a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2v-6.18A6.5 6.5 0 0 1 10 5.5V4a2 2 0 0 1 2-2zm-2.5 9a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3zm5 0a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3z"/>
+    </svg>
+  </div>
+);
+
 // --- DAİRESEL ANALİZ GRAFİĞİ BİLEŞENİ ---
 const AnalysisCircle = ({ percent, label, dark = false }: { percent: number, label: string, dark?: boolean }) => {
   const radius = 36;
@@ -99,15 +141,19 @@ const AnalysisCircle = ({ percent, label, dark = false }: { percent: number, lab
     helpful_ratio: string | null;     // Memnuniyet anketi — null = henüz oy yok
     helpful_rated_count: number;
     top_brands: { brand: string; count: number }[];
+    category_distribution: { category: string; count: number }[];
+    sentiment_distribution: { sentiment: string; count: number }[];
     recent_feedbacks: any[];
   }>({
     total_feedbacks: 0,
     resolved_tickets: 0,
     negative_ratio: "0",
-    human_help_count: 0,   // Hibrit destek metriği — insan operatöre yönlendirilen şikayet sayısı
-    helpful_ratio: null,    // Memnuniyet — 👍 / (👍+👎) yüzdesi
+    human_help_count: 0,
+    helpful_ratio: null,
     helpful_rated_count: 0,
-    top_brands: [],         // Marka entegrasyonu — en çok şikayet alan markalar
+    top_brands: [],
+    category_distribution: [],   // Donut chart için
+    sentiment_distribution: [],  // Pie chart için
     recent_feedbacks: []
   });
 
@@ -277,9 +323,9 @@ const chartData = {
             </div>
           ))}
         </div>
-        {/* 4'lü İstatistik Kutularının Bittiği Yerden Hemen Sonra */}
-<div className="grid grid-cols-1 gap-6 mt-8">
-  <div className="bg-white p-8 rounded-[40px] border border-zinc-200/50 shadow-sm h-[400px]">
+        {/* Trend grafiği + Kategori dağılımı yan yana (D — Admin paneli grafikleri) */}
+<div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-8">
+  <div className="lg:col-span-2 bg-white p-8 rounded-[40px] border border-zinc-200/50 shadow-sm h-[400px]">
     <div className="flex justify-between items-center mb-6">
       <h3 className="text-[10px] font-black uppercase tracking-widest text-zinc-400">
         Duygu Trend Analizi (Canlı)
@@ -289,9 +335,68 @@ const chartData = {
         GERÇEK ZAMANLI
       </span>
     </div>
-    
+
     <div className="h-[280px] w-full">
-      <Line data={chartData} options={chartOptions} /> 
+      <Line data={chartData} options={chartOptions} />
+    </div>
+  </div>
+
+  {/* Kategori dağılımı — donut chart */}
+  <div className="bg-white p-8 rounded-[40px] border border-zinc-200/50 shadow-sm h-[400px] flex flex-col">
+    <div className="flex justify-between items-center mb-2">
+      <h3 className="text-[10px] font-black uppercase tracking-widest text-zinc-400">
+        Kategori Dağılımı
+      </h3>
+      <span className="text-[10px] font-bold text-zinc-400">
+        {dashboardStats.category_distribution?.length || 0} kategori
+      </span>
+    </div>
+    <div className="flex-1 flex items-center justify-center min-h-0">
+      {(dashboardStats.category_distribution?.length || 0) === 0 ? (
+        <p className="text-sm text-zinc-300 font-medium italic">Veri biriktikçe burada görüntülenecek</p>
+      ) : (
+        <Doughnut
+          data={{
+            labels: dashboardStats.category_distribution.map(c => c.category),
+            datasets: [{
+              data: dashboardStats.category_distribution.map(c => c.count),
+              backgroundColor: [
+                '#f59e0b', // Lojistik - amber
+                '#f43f5e', // Teknik  - rose
+                '#10b981', // Ödeme   - emerald
+                '#0ea5e9', // İletişim- sky
+                '#8b5cf6', // Ürün    - violet
+                '#6366f1', // İşlem   - indigo
+                '#a855f7', '#ec4899', // ek renkler
+              ],
+              borderWidth: 0,
+              hoverOffset: 6,
+            }]
+          }}
+          options={{
+            responsive: true,
+            maintainAspectRatio: false,
+            cutout: '65%',
+            plugins: {
+              legend: {
+                position: 'bottom',
+                labels: {
+                  boxWidth: 8,
+                  boxHeight: 8,
+                  font: { size: 10, weight: 'bold' as const },
+                  padding: 10,
+                  usePointStyle: true,
+                }
+              },
+              tooltip: {
+                callbacks: {
+                  label: (ctx: any) => ` ${ctx.label}: ${ctx.parsed} şikayet`
+                }
+              }
+            }
+          }}
+        />
+      )}
     </div>
   </div>
 </div>
@@ -478,7 +583,12 @@ export default function AIFeedbackHubPortal() {
 
   // --- CHATBOT MANTIK SİSTEMİ ---
   const [messages, setMessages] = useState([
-    { role: "bot", text: "Merhaba! AI Feedback Hub destek merkezine hoş geldiniz. Markalarla yaşadığınız deneyimleri paylaşmanız ve çözüm bulmanız için buradayım. Bugün size nasıl yardımcı olabilirim?", type: "text" }
+    {
+      role: "bot",
+      text: "Hoş geldiniz. Markalarla yaşadığınız deneyimi paylaşabilir, sıkça sorulan konularda bilgi alabilir veya bana sesli olarak iletebilirsiniz. Aşağıdaki konulardan birini seçerek başlayabilirsiniz.",
+      type: "welcome",
+      complete: true,
+    }
   ]);
   const [input, setInput] = useState("");
   const [isTyping, setIsTyping] = useState(false);
@@ -631,13 +741,40 @@ export default function AIFeedbackHubPortal() {
     }
   }, [voiceOutput]);
 
-  const quickActions = [
-    { label: "Yeni Bir Şikayet Yaz", action: "new_complaint" },
-    { label: "Örnek Duygu Analizi Simüle Et", action: "demo_analysis" },
-    { label: "Sık Karşılaşılan Sorunlar", action: "list_issues" },
-    { label: "Çözüm Süreçlerini Sorgula", action: "process_info" },
-    { label: "Sistem Nasıl Çalışır?", action: "how_it_works" }
+  // Profesyonel görünüm: 6 adet kategorize edilmiş hızlı işlem. Her birinde küçük
+  // bir ikon ve "bu butona basınca bot ne yapar" örneği var. İkonlar Tailwind
+  // renkleriyle uyumlu.
+  const quickActions: Array<{
+    label: string;
+    sub: string;
+    icon: React.ElementType;
+    color: string;
+    action?: string;
+    prompt?: string;
+  }> = [
+    { label: "Yeni Şikayet Yaz", sub: "Markaya geri bildirim ilet", icon: IconPen, color: "indigo", action: "new_complaint" },
+    { label: "Toplam Şikayet Sayısı", sub: "Sistemdeki gerçek veri", icon: IconBarChart, color: "fuchsia", prompt: "Toplam kaç şikayet var?" },
+    { label: "İade Politikası", sub: "Standart süre ve şartlar", icon: IconRefresh, color: "emerald", prompt: "İade nasıl yapılır?" },
+    { label: "Kargo & Teslimat", sub: "Standart süreler", icon: IconWorkflow, color: "amber", prompt: "Kargom ne kadar sürede gelir?" },
+    { label: "Sistem Hakkında", sub: "Nasıl çalıştığını öğren", icon: IconInfo, color: "sky", action: "process_info" },
+    { label: "Sesli Konuşma", sub: "Mikrofona basıp konuşun", icon: IconMic, color: "rose", prompt: "__voice_hint" },
   ];
+
+  /** Action / prompt'a göre quick action'ı tetikleyen yardımcı fonksiyon */
+  const triggerQuickAction = (qa: { label: string; action?: string; prompt?: string }) => {
+    if (qa.prompt === "__voice_hint") {
+      setMessages(prev => [...prev, {
+        role: "bot",
+        text: "Mesaj kutusunun yanındaki mikrofon ikonuna tıklayıp konuşmaya başlayın. Türkçe konuştuklarınız otomatik olarak yazıya dökülür.",
+        type: "text",
+        complete: true,
+      }]);
+      return;
+    }
+    const userMessage = qa.prompt || qa.label;
+    setMessages(prev => [...prev, { role: "user", text: userMessage, type: "text" }]);
+    processResponse(userMessage, qa.action);
+  };
 
   // Bu useEffect mesajlar geldikçe sayfayı kaydırır ama donmaya sebep olmaz
 useEffect(() => {
@@ -1033,17 +1170,27 @@ useEffect(() => {
       )}
 
       {/* --- CHATBOT POPUP --- */}
-     <motion.div 
-        drag 
+     <motion.div
+        drag
         dragMomentum={false}
-        className="fixed bottom-8 right-8 z-[100] flex flex-col items-end gap-4 text-zinc-950 cursor-grab active:cursor-grabbing"
+        className={cn(
+          "fixed z-[100] flex flex-col items-end gap-4 text-zinc-950 cursor-grab active:cursor-grabbing",
+          // Mobilde her köşeden tam ekran, masaüstünde sağ alt köşede widget.
+          isBotOpen ? "inset-0 sm:inset-auto sm:bottom-8 sm:right-8" : "bottom-8 right-8"
+        )}
       >
         {isBotOpen && (
-          <div className="w-[360px] h-[580px] bg-white rounded-3xl shadow-[0_20px_60px_rgba(0,0,0,0.15)] border border-zinc-100 flex flex-col overflow-hidden animate-in zoom-in-95 duration-300">
-            <div className="bg-indigo-950 p-6 flex justify-between items-center text-white">
-              <div className="flex items-center gap-3 font-black">
-                <div className="w-2 h-2 bg-cyan-400 rounded-full " />
-                <span className="text-[11px] tracking-widest uppercase text-white">AI Feedback Assistant</span>
+          <div className="w-full h-full sm:w-[380px] sm:h-[600px] bg-white sm:rounded-3xl shadow-[0_20px_60px_rgba(0,0,0,0.15)] border-0 sm:border border-zinc-100 flex flex-col overflow-hidden animate-in zoom-in-95 fade-in duration-300">
+            <div className="bg-gradient-to-r from-indigo-950 via-indigo-900 to-violet-900 p-5 flex justify-between items-center text-white border-b border-white/5">
+              <div className="flex items-center gap-3">
+                <BotAvatar className="!w-9 !h-9 ring-2 ring-white/20" />
+                <div className="flex flex-col">
+                  <span className="text-[12px] font-black tracking-tight text-white leading-tight">AI Feedback Assistant</span>
+                  <span className="text-[9px] font-bold uppercase tracking-widest text-cyan-300/80 leading-tight flex items-center gap-1.5">
+                    <span className="w-1.5 h-1.5 bg-cyan-400 rounded-full animate-pulse" />
+                    Çevrimiçi
+                  </span>
+                </div>
               </div>
               <div className="flex items-center gap-3">
                 {/* VOICE OUTPUT TOGGLE — açıksa bot cevapları sesli okunur */}
@@ -1068,8 +1215,9 @@ useEffect(() => {
             
             <div className="flex-1 p-6 overflow-y-auto bg-zinc-50/50 space-y-4 font-medium">
               {messages.map((m, i) => (
-                <div key={i} className="flex flex-col gap-2">
-                  <div className={cn("p-4 rounded-2xl text-[13px] leading-relaxed max-w-[92%] shadow-sm", m.role === "bot" ? "bg-white border text-zinc-700 self-start" : "bg-indigo-600 text-white self-end ml-auto")}>
+                <div key={i} className={cn("flex gap-2 items-start animate-in fade-in slide-in-from-bottom-1 duration-300", m.role === "bot" ? "" : "justify-end")}>
+                  {m.role === "bot" && <BotAvatar className="mt-1" />}
+                  <div className={cn("p-4 rounded-2xl text-[13px] leading-relaxed max-w-[85%] shadow-sm", m.role === "bot" ? "bg-white border text-zinc-700 rounded-tl-md" : "bg-indigo-600 text-white rounded-tr-md")}>
                     {m.text}
                     
                     {/* MARKA ROZETİ — Llama metinden marka adını çıkardıysa göster.
@@ -1156,18 +1304,58 @@ useEffect(() => {
               ))}
               {simStep && <div className="flex items-center gap-3 p-4 bg-indigo-950 text-cyan-400 rounded-2xl text-[10px] font-black uppercase tracking-widest animate-pulse"><IconZap className="w-4 h-4" /> {simStep}</div>}
               {messages.length === 1 && !isTyping && (
-                <div className="flex flex-col gap-2 pt-2 animate-in fade-in slide-in-from-bottom-2 duration-500">
-                  <p className="text-[10px] font-black uppercase tracking-widest text-zinc-400 ml-1 mb-1">Hızlı İşlemler</p>
-                  {quickActions.map((qa, i) => (
-                    <button key={i} onClick={() => { setMessages(prev => [...prev, { role: "user", text: qa.label, type: "text" }]); processResponse(qa.label, qa.action); }} className="text-left bg-white border border-zinc-200 hover:border-indigo-600 p-3 rounded-xl text-[11px] font-bold transition-all shadow-sm">{qa.label}</button>
-                  ))}
+                <div className="pt-3 space-y-3 animate-in fade-in slide-in-from-bottom-2 duration-500">
+                  <div className="flex items-center gap-2 px-1">
+                    <IconSparkle className="w-3 h-3 text-indigo-500" />
+                    <p className="text-[10px] font-black uppercase tracking-widest text-zinc-400">Önerilen Konular</p>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    {quickActions.map((qa, i) => {
+                      const Icon = qa.icon;
+                      // Tailwind purge dynamic class'ları tanımıyor — statik map kullanıyoruz.
+                      const colorMap: Record<string, { bg: string; text: string; hoverBorder: string; hoverBg: string; hoverIcon: string }> = {
+                        indigo:  { bg: "bg-indigo-100",  text: "text-indigo-600",  hoverBorder: "hover:border-indigo-300",  hoverBg: "hover:bg-indigo-50/40",  hoverIcon: "group-hover:bg-indigo-200" },
+                        fuchsia: { bg: "bg-fuchsia-100", text: "text-fuchsia-600", hoverBorder: "hover:border-fuchsia-300", hoverBg: "hover:bg-fuchsia-50/40", hoverIcon: "group-hover:bg-fuchsia-200" },
+                        emerald: { bg: "bg-emerald-100", text: "text-emerald-600", hoverBorder: "hover:border-emerald-300", hoverBg: "hover:bg-emerald-50/40", hoverIcon: "group-hover:bg-emerald-200" },
+                        amber:   { bg: "bg-amber-100",   text: "text-amber-600",   hoverBorder: "hover:border-amber-300",   hoverBg: "hover:bg-amber-50/40",   hoverIcon: "group-hover:bg-amber-200" },
+                        sky:     { bg: "bg-sky-100",     text: "text-sky-600",     hoverBorder: "hover:border-sky-300",     hoverBg: "hover:bg-sky-50/40",     hoverIcon: "group-hover:bg-sky-200" },
+                        rose:    { bg: "bg-rose-100",    text: "text-rose-600",    hoverBorder: "hover:border-rose-300",    hoverBg: "hover:bg-rose-50/40",    hoverIcon: "group-hover:bg-rose-200" },
+                      };
+                      const c = colorMap[qa.color] || colorMap.indigo;
+                      return (
+                        <button
+                          key={i}
+                          onClick={() => triggerQuickAction(qa)}
+                          className={cn(
+                            "group text-left p-3 rounded-2xl border border-zinc-200 bg-white shadow-sm transition-all duration-200 hover:shadow-md hover:-translate-y-0.5",
+                            c.hoverBorder, c.hoverBg
+                          )}
+                        >
+                          <div className="flex items-start gap-2.5">
+                            <div className={cn("flex-shrink-0 w-8 h-8 rounded-xl flex items-center justify-center transition-colors", c.bg, c.text, c.hoverIcon)}>
+                              <Icon className="w-4 h-4" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="text-[11px] font-bold text-zinc-900 leading-tight">{qa.label}</div>
+                              <div className="text-[9px] text-zinc-500 leading-snug mt-0.5">{qa.sub}</div>
+                            </div>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
               )}
               {isTyping && (
-              <div className="flex items-center p-4 bg-white/50 w-fit rounded-full ml-2">
-                 <span className="text-xs font-black uppercase tracking-widest text-indigo-600 animate-none">AI Analiz Ediyor...</span>
-              </div>
-            )}
+                <div className="flex gap-2 items-start animate-in fade-in duration-300">
+                  <BotAvatar className="mt-1" />
+                  <div className="bg-white border rounded-2xl rounded-tl-md px-4 py-3 shadow-sm flex items-center gap-1.5">
+                    <span className="w-1.5 h-1.5 bg-indigo-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                    <span className="w-1.5 h-1.5 bg-indigo-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                    <span className="w-1.5 h-1.5 bg-indigo-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                  </div>
+                </div>
+              )}
               <div ref={chatEndRef} />
             </div>
             <div className="p-4 bg-white border-t flex gap-2 items-center">

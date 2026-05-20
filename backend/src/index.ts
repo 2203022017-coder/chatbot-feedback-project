@@ -152,7 +152,7 @@ app.get('/api/admin/dashboard-stats', async (req, res) => {
   try {
     if (prisma) {
       try {
-        const [total, negativeCount, humanHelpCount, recent, brandGroups, helpfulYes, helpfulRated] = await Promise.all([
+        const [total, negativeCount, humanHelpCount, recent, brandGroups, helpfulYes, helpfulRated, categoryGroups, sentimentGroups] = await Promise.all([
           prisma.feedback.count(),
           prisma.feedback.count({ where: { sentiment: 'Negative' } }),
           prisma.feedback.count({ where: { needs_human: true } }),
@@ -170,7 +170,17 @@ app.get('/api/admin/dashboard-stats', async (req, res) => {
           // MEMNUNİYET ANKETİ: 👍 sayısı
           prisma.feedback.count({ where: { helpful: true } }),
           // İşaretlenmiş toplam (👍 + 👎)
-          prisma.feedback.count({ where: { NOT: { helpful: null } } })
+          prisma.feedback.count({ where: { NOT: { helpful: null } } }),
+          // KATEGORİ DAĞILIMI: donut chart için
+          prisma.feedback.groupBy({
+            by: ['category'],
+            _count: { category: true },
+          }),
+          // DUYGU DAĞILIMI: pie chart için (Negative/Neutral/Positive)
+          prisma.feedback.groupBy({
+            by: ['sentiment'],
+            _count: { sentiment: true },
+          })
         ]);
 
         const negativeRatio = total === 0 ? "0" : ((negativeCount / total) * 100).toFixed(1);
@@ -188,6 +198,16 @@ app.get('/api/admin/dashboard-stats', async (req, res) => {
           top_brands: brandGroups.map((g: any) => ({
             brand: g.brand,
             count: g._count.brand,
+          })),
+          // KATEGORİ DAĞILIMI: admin paneldeki donut chart için
+          category_distribution: categoryGroups.map((g: any) => ({
+            category: g.category,
+            count: g._count.category,
+          })),
+          // DUYGU DAĞILIMI: pie chart için
+          sentiment_distribution: sentimentGroups.map((g: any) => ({
+            sentiment: g.sentiment,
+            count: g._count.sentiment,
           })),
           recent_feedbacks: recent.map((f: any) => ({
             id: f.id,
