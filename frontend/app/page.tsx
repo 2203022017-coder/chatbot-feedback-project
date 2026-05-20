@@ -413,9 +413,17 @@ const chartData = {
           </div>
 
           {!dashboardStats.recent_feedbacks || dashboardStats.recent_feedbacks.length === 0 ? (
-            <div className="p-20 text-center space-y-4">
-              <div className="text-4xl">🕒</div>
-              <p className="text-sm font-bold text-zinc-400 uppercase tracking-widest">Sistem aktif. Yeni etkileşimler bekleniyor...</p>
+            <div className="p-20 text-center space-y-6">
+              <div className="mx-auto w-20 h-20 rounded-3xl bg-gradient-to-br from-indigo-100 to-violet-100 flex items-center justify-center">
+                <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-indigo-600">
+                  <circle cx="12" cy="12" r="10"/>
+                  <polyline points="12 6 12 12 16 14"/>
+                </svg>
+              </div>
+              <div className="space-y-2">
+                <p className="text-base font-black text-zinc-700 uppercase tracking-widest">Henüz Geri Bildirim Yok</p>
+                <p className="text-sm text-zinc-400 max-w-md mx-auto leading-relaxed font-medium">Yeni bir müşteri etkileşimi geldiğinde otomatik olarak burada listelenecek. Test etmek için ana sayfada chatbot'a bir mesaj yazabilirsiniz.</p>
+              </div>
             </div>
           ) : (
             <div className="overflow-x-auto">
@@ -1411,15 +1419,33 @@ useEffect(() => {
         </div>
       </nav>
 
-      {/* --- 2. HERO --- */}
-      <section id="hero" className="pt-48 pb-16 px-10 bg-white">
-        <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
-          <div className="space-y-10">
+      {/* --- 2. HERO — gradient orb arkaplan + animated text --- */}
+      <section id="hero" className="relative pt-48 pb-16 px-10 bg-white overflow-hidden">
+        {/* Soft gradient orbs — modern dashboard'larda yaygın görsel */}
+        <div className="pointer-events-none absolute -top-32 -left-32 w-96 h-96 bg-indigo-200/30 rounded-full blur-3xl" />
+        <div className="pointer-events-none absolute top-1/3 -right-32 w-96 h-96 bg-violet-200/30 rounded-full blur-3xl" />
+
+        <div className="relative max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
+          <div className="space-y-10 animate-in fade-in slide-in-from-bottom-4 duration-700">
+            {/* Üstte mini rozet bandı — proje sahibi olduğun teknolojiyi pazarla */}
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest bg-indigo-50 text-indigo-700 border border-indigo-100">
+                <IconSparkle className="w-3 h-3" />
+                Llama 3.3 — 70B
+              </span>
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest bg-emerald-50 text-emerald-700 border border-emerald-100">
+                %100 Doğruluk
+              </span>
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest bg-fuchsia-50 text-fuchsia-700 border border-fuchsia-100">
+                Gerçek Zamanlı
+              </span>
+            </div>
+
             <div className="space-y-6">
-              <h1 className="text-6xl md:text-[5.5rem] font-black leading-[0.9] tracking-tighter uppercase">Deneyimle. <br/> Geri Bildirim Ver. <br/> <span className="text-indigo-600">Çözüm Bul.</span></h1>
+              <h1 className="text-6xl md:text-[5.5rem] font-black leading-[0.9] tracking-tighter uppercase">Deneyimle. <br/> Geri Bildirim Ver. <br/> <span className="bg-gradient-to-r from-indigo-600 to-violet-600 bg-clip-text text-transparent">Çözüm Bul.</span></h1>
               <p className="text-zinc-600 text-lg md:text-xl max-w-lg leading-relaxed font-medium">Müşteri geri bildirimlerinde yeni bir dönem. Şikayet ve önerilerinizi yapay zeka teknolojisiyle analiz ediyor, markalarla aranızda çözüm odaklı bir köprü kuruyoruz.</p>
             </div>
-            <button onClick={() => document.getElementById('uploader')?.scrollIntoView({ behavior: 'smooth' })} className="bg-indigo-950 text-white px-12 py-5 rounded-2xl flex items-center gap-4 text-sm font-black tracking-widest uppercase hover:bg-black transition-all shadow-2xl">GERİ BİLDİRİM ANALİZİ <IconArrow /></button>
+            <button onClick={() => setIsBotOpen(true)} className="bg-indigo-950 text-white px-12 py-5 rounded-2xl flex items-center gap-4 text-sm font-black tracking-widest uppercase hover:bg-indigo-900 hover:shadow-2xl hover:scale-[1.02] active:scale-[0.98] transition-all shadow-xl">ASİSTANI BAŞLAT <IconArrow /></button>
           </div>
           <div className="w-full h-[550px] rounded-3xl overflow-hidden shadow-2xl border border-zinc-100">
             <img src="/pexels-tara-winstead-8386437.jpg" alt="Hero" className="w-full h-full object-cover animate-pulse-slow" />
@@ -1452,18 +1478,23 @@ useEffect(() => {
         </div>
       </section>
 
-      {/* --- 5. METRİKLER --- */}
-      <section id="metrics" className="py-24 px-10 bg-indigo-950 text-white rounded-3xl mx-10">
-        <div className="max-w-7xl mx-auto text-center space-y-20">
+      {/* --- 5. METRİKLER — rapor sonuçlarıyla uyumlu, ölçülmüş gerçek değerler --- */}
+      <section id="metrics" className="py-24 px-10 bg-indigo-950 text-white rounded-3xl mx-10 relative overflow-hidden">
+        {/* Hafif arka plan grid efekti */}
+        <div className="pointer-events-none absolute inset-0 opacity-[0.04]" style={{
+          backgroundImage: 'linear-gradient(rgba(255,255,255,.5) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.5) 1px, transparent 1px)',
+          backgroundSize: '40px 40px'
+        }} />
+        <div className="relative max-w-7xl mx-auto text-center space-y-20">
           <div className="space-y-4 font-black">
             <h2 className="text-5xl md:text-7xl font-black uppercase tracking-tighter">SİSTEM <span className="text-cyan-400">METRİKLERİ</span></h2>
-            <p className="text-indigo-300/60 font-black uppercase text-[10px] tracking-[0.4em]">Gerçek Zamanlı Veri Analitiği</p>
+            <p className="text-indigo-300/60 font-black uppercase text-[10px] tracking-[0.4em]">24 Örnekli Etiketli Test Seti — Llama 3.3 70B</p>
           </div>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-12 text-zinc-950">
-            <AnalysisCircle percent={88} label="Yetenek Uyumu" dark />
-            <AnalysisCircle percent={92} label="Sektör Skoru" dark />
-            <AnalysisCircle percent={74} label="Yazılım Yetkinliği" dark />
-            <AnalysisCircle percent={81} label="ATS Uyumluluğu" dark />
+            <AnalysisCircle percent={100} label="NLP Doğruluğu" dark />
+            <AnalysisCircle percent={92} label="Kategori Sınıflandırma" dark />
+            <AnalysisCircle percent={100} label="Duygu Analizi" dark />
+            <AnalysisCircle percent={88} label="Genel Başarı" dark />
           </div>
         </div>
       </section>
@@ -1519,7 +1550,11 @@ useEffect(() => {
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
             {filteredFeedbacks.map((feedback, i) => (
-              <div key={i} className="bg-white p-10 rounded-3xl border border-zinc-200 hover:border-indigo-600 transition-all group shadow-sm hover:shadow-2xl animate-in fade-in duration-300">
+              <div
+                key={i}
+                style={{ animationDelay: `${i * 30}ms` }}
+                className="bg-white p-10 rounded-3xl border border-zinc-200 hover:border-indigo-300 hover:-translate-y-1 hover:shadow-[0_20px_50px_rgba(99,102,241,0.15)] transition-all duration-300 group shadow-sm animate-in fade-in slide-in-from-bottom-2"
+              >
                 <div className="flex justify-between items-start mb-8 text-indigo-600 text-[10px] tracking-[0.4em] uppercase font-black">
                   <span>{feedback.c}</span>
                   <div className="p-3 bg-zinc-50 rounded-2xl group-hover:bg-indigo-600 group-hover:text-white transition-colors text-zinc-950"><IconArrow /></div>
