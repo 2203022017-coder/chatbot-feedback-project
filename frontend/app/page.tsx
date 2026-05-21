@@ -666,10 +666,14 @@ export default function AIFeedbackHubPortal() {
 
   // Bot cevabı geldiğinde sesli okuma — voiceOutput açıkken son bot mesajını okur.
   useEffect(() => {
-    console.log("🔊 [TTS-effect] Tetiklendi. voiceOutput=", voiceOutput, "messages.length=", messages.length, "lastRole=", messages[messages.length-1]?.role, "lastComplete=", (messages[messages.length-1] as any)?.complete);
     if (!voiceOutput) return;
+    // Bot kapalıyken sesli okuma yapma — kullanıcı widget'i açmamışsa konuşmasın.
+    if (!isBotOpen) return;
     if (typeof window === "undefined" || !window.speechSynthesis) return;
     if (messages.length === 0) return;
+    // Hoşgeldiniz mesajı (welcome type) sesli okunmaz, sadece gerçek cevaplar okunur.
+    const lastForType = messages[messages.length - 1] as any;
+    if (lastForType?.type === "welcome") return;
 
     const lastIdx = messages.length - 1;
     const lastMsg = messages[lastIdx];
