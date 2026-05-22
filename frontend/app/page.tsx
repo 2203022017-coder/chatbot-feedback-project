@@ -609,7 +609,7 @@ export default function AIFeedbackHubPortal() {
   // voiceOutput   → bot cevabı geldiğinde otomatik olarak sesli okunsun mu (toggle)
   // voiceSupported→ Tarayıcı Web Speech API destekliyor mu (Firefox eski sürümlerde yok)
   const [isListening, setIsListening] = useState(false);
-  const [voiceOutput, setVoiceOutput] = useState(true);  // Default açık — kullanıcı isterse butonla kapatır
+  const [voiceOutput, setVoiceOutput] = useState(false);  // Default KAPALI — kullanıcı hoparlör butonuna basarak açar (opt-in)
   const [voiceSupported, setVoiceSupported] = useState(false);
   const recognitionRef = useRef<any>(null);
   // Sesli okuma çift okumayı engellemek için son okunan mesajın "imzasını" tutar.
