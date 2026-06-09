@@ -48,9 +48,15 @@ try {
   console.warn("⚠️  KB okuma hatası:", err?.message);
 }
 
-/** Saat:dakika formatında zaman damgası (frontend tablosunda gösterim için). */
+/** Saat:dakika formatında zaman damgası (frontend tablosunda gösterim için).
+ *  Render sunucusu UTC çalışıyor; Türkiye saatine (UTC+3) çevirmek için
+ *  timeZone parametresi ile Europe/Istanbul'a sabitliyoruz. */
 const fmtTime = (d: Date) =>
-  d.toLocaleTimeString("tr-TR", { hour: '2-digit', minute: '2-digit' });
+  d.toLocaleTimeString("tr-TR", {
+    hour: '2-digit',
+    minute: '2-digit',
+    timeZone: 'Europe/Istanbul'
+  });
 
 app.post('/api/feedback/analyze', async (req, res) => {
   try {
