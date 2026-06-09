@@ -253,6 +253,24 @@ app.get('/api/admin/dashboard-stats', async (req, res) => {
     const helpfulRated = feedbacksDB.filter(f => f.helpful === true || f.helpful === false).length;
     const helpfulRatio = helpfulRated === 0 ? null : ((helpfulYes / helpfulRated) * 100).toFixed(0);
 
+    // KATEGORİ DAĞILIMI (in-memory fallback): donut chart bu olmadan çalışmıyor
+    const categoryCounts: Record<string, number> = {};
+    for (const f of feedbacksDB) {
+      const c = f.category || "Belirtilmemiş";
+      categoryCounts[c] = (categoryCounts[c] || 0) + 1;
+    }
+    const categoryDistribution = Object.entries(categoryCounts)
+      .map(([category, count]) => ({ category, count }));
+
+    // DUYGU DAĞILIMI (in-memory fallback)
+    const sentimentCounts: Record<string, number> = {};
+    for (const f of feedbacksDB) {
+      const s = f.sentiment || "Neutral";
+      sentimentCounts[s] = (sentimentCounts[s] || 0) + 1;
+    }
+    const sentimentDistribution = Object.entries(sentimentCounts)
+      .map(([sentiment, count]) => ({ sentiment, count }));
+
     res.json({
       total_feedbacks: total,
       resolved_tickets: 0,
@@ -261,6 +279,8 @@ app.get('/api/admin/dashboard-stats', async (req, res) => {
       helpful_ratio: helpfulRatio,
       helpful_rated_count: helpfulRated,
       top_brands: topBrands,
+      category_distribution: categoryDistribution,
+      sentiment_distribution: sentimentDistribution,
       recent_feedbacks: feedbacksDB.slice(0, 8)
     });
   } catch (error) {
