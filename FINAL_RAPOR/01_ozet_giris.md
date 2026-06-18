@@ -1,0 +1,19 @@
+# Güncellenmiş GİRİŞ Bölümü
+
+Bu dosya; vize raporundaki **GİRİŞ** bölümünün final aşamasındaki son hâlini içerir. Mevcut metin korunmuş, üzerine son aşamada eklenen özellikleri tanıtan paragraflar eklenmiştir.
+
+---
+
+## GİRİŞ
+
+Günümüzde dijitalleşmenin hızla artmasıyla birlikte işletmeler, müşteri taleplerini ve geri bildirimlerini daha hızlı, etkili ve sürdürülebilir biçimde yönetme ihtiyacı duymaktadır. Özellikle çevrimiçi platformlar üzerinden gerçekleşen müşteri etkileşimlerinin artması, geleneksel müşteri destek yöntemlerinin yetersiz kalmasına neden olmaktadır. Bu durum, hem işletmelerin operasyonel yükünü artırmakta hem de müşteri memnuniyetini olumsuz yönde etkileyebilmektedir [1], [3].
+
+Bu konunun seçilmesinde, müşteri destek süreçlerinde yaşanan iletişim ve geri bildirim problemlerinin uygulamada sıkça gözlemlenmesi etkili olmuştur. Son yıllarda konuşma tabanlı sistemler, kullanıcılarla doğal ve etkileşimli bir iletişim kurabilme yetenekleri sayesinde müşteri destek süreçlerinde yaygın olarak kullanılmaya başlanmıştır. Chatbot sistemleri; çok fazla sorulan soruların yanıtlanması, temel bilgilendirmelerin yapılması ve kullanıcı geri bildirimlerinin toplanması gibi birçok işlevi otomatikleştirerek işletmelere önemli avantajlar sunmaktadır. Bu sistemler, müşteri taleplerine kesinti olmadan erişim sağlayarak zaman ve maliyet açısından verimlilik sağlamaktadır [1], [2], [3].
+
+Müşteri geri bildirimleri, işletmelerin sundukları ürün ve hizmetleri geliştirebilmeleri açısından kritik bir öneme sahiptir. Ancak bu geri bildirimlerin büyük ölçüde metin tabanlı ve dağınık yapıda olması, anlamlı sonuçlar elde edilmesini zorlaştırmaktadır. Bu nedenle, müşteri mesajlarının sistematik bir biçimde toplanması, sınıflandırılması ve analiz edilmesi gerekmektedir. Konuşma tabanlı sistemler, bu süreci merkezi ve düzenli bir yapı altında ele alabilme imkânı sunmaktadır [4], [5].
+
+Bu çalışma kapsamında, işletmelerin müşteri etkileşimlerini daha etkin bir şekilde yönetebilmeleri amacıyla web tabanlı bir müşteri destek ve geri bildirim chatbot sistemi geliştirilmiştir. Geliştirilen sistem; kullanıcılarla doğal dil üzerinden etkileşime girerek sık karşılaşılan talepleri karşılamakta ve müşteri geri bildirimlerini kayıt altına almaktadır. Elde edilen veriler, işletmelere hizmet süreçlerini değerlendirebilmeleri için anlamlı bir kaynak sunmaktadır.
+
+**Bu raporun final aşamasında, vize aşamasında öngörülen birçok özellik gerçek uygulamaya dönüştürülmüştür.** Simüle edilen yapay zeka süreci; Groq LPU altyapısı üzerinden Meta Llama 3.3-70B modeli ile gerçek bir doğal dil işleme servisine bağlanmıştır. Sisteme; çok-turlu konuşma hafızası, Server-Sent Events ile akıcı yanıt akışı, Retrieval-Augmented Generation (RAG) tabanlı bilgi erişimi, Function Calling ile veritabanı sorgulu yapay zeka aracılığı (AI Agent), hibrit insan-yapay zeka destek mekanizması, marka tespiti, sesli giriş ve çıkış (Web Speech API), kullanıcı memnuniyet anketi ve PostgreSQL ile kalıcı veri depolama gibi yetkinlikler entegre edilmiştir. Yapay zekanın başarı oranı, 24 örneklik etiketli bir test seti üzerinde **ölçülmüş ve raporlanmıştır**; kategori sınıflandırma doğruluğu %92, duygu analizi doğruluğu %100, genel doğruluk %88 olarak tespit edilmiştir.
+
+Çalışmanın temel amacı; konuşma tabanlı sistemlerin müşteri destek süreçlerindeki kullanımını incelemek, bu sistemlerin işletmelere sağladığı katkıları ortaya koymak ve büyük dil modellerinin gerçek bir kullanım senaryosuna entegre edildiği üretim seviyesi bir prototip geliştirmektir. Geliştirilen chatbot sistemi ile müşteri etkileşimlerinin daha düzenli, erişilebilir, ölçülebilir ve analiz edilebilir hâle getirilmesi hedeflenmiştir. Sistem; hem yerel geliştirme ortamında hem de Vercel ve Render bulut platformları üzerinde çalışır durumda dağıtılmıştır ve gerçek kullanıcılar tarafından test edilmeye hazır şekilde sunulmuştur.

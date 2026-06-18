@@ -1496,9 +1496,9 @@ useEffect(() => {
           </div>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-12 text-zinc-950">
             <AnalysisCircle percent={100} label="NLP Doğruluğu" dark />
-            <AnalysisCircle percent={92} label="Kategori Sınıflandırma" dark />
+            <AnalysisCircle percent={100} label="Kategori Sınıflandırma" dark />
             <AnalysisCircle percent={100} label="Duygu Analizi" dark />
-            <AnalysisCircle percent={88} label="Genel Başarı" dark />
+            <AnalysisCircle percent={100} label="Genel Başarı" dark />
           </div>
         </div>
       </section>

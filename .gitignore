@@ -9,3 +9,4 @@ backend/prisma/dev.db
 backend/prisma/prisma/dev.db
 *.db
 *.db-journal
+.DS_Store
